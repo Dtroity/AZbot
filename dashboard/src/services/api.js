@@ -73,7 +73,7 @@ export const filtersAPI = {
   deleteFilter: (id) => api.delete(`/filters/${id}`),
   activateFilter: (id) => api.post(`/filters/${id}/activate`),
   deactivateFilter: (id) => api.post(`/filters/${id}/deactivate`),
-  createBulkFilters: (supplierId, keywords) => api.post('/filters/bulk', { supplier_id: supplierId, keywords }),
+  createBulkFilters: (supplierId, keywords) => api.post('/filters/bulk', { supplier_id: Number(supplierId), keywords: Array.isArray(keywords) ? keywords : [keywords] }),
 };
 
 // Stats API

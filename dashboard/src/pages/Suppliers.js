@@ -184,7 +184,11 @@ function Suppliers() {
 
   const handleEditSupplier = async () => {
     try {
-      await suppliersAPI.updateSupplier(selectedSupplier.id, selectedSupplier);
+      await suppliersAPI.updateSupplier(selectedSupplier.id, {
+        name: selectedSupplier.name,
+        active: selectedSupplier.active,
+        role: selectedSupplier.role,
+      });
       setEditDialogOpen(false);
       setSelectedSupplier(null);
       fetchSuppliers();

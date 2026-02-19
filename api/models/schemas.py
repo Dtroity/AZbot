@@ -69,6 +69,22 @@ class FilterResponse(FilterBase):
         from_attributes = True
 
 
+class FilterBulkCreate(BaseModel):
+    """Тело запроса для массового создания фильтров."""
+    supplier_id: int
+    keywords: List[str] = []
+
+    @field_validator("supplier_id", mode="before")
+    @classmethod
+    def coerce_supplier_id(cls, v):
+        if v is None or v == "":
+            raise ValueError("supplier_id required")
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            raise ValueError("supplier_id must be integer")
+
+
 # Order schemas
 class OrderBase(BaseModel):
     text: str

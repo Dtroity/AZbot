@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import get_db, get_current_admin
-from ..models.schemas import FilterCreate, FilterUpdate, FilterResponse
+from ..models.schemas import FilterCreate, FilterUpdate, FilterResponse, FilterBulkCreate
 from bot.services import FilterService, SupplierService
 
 
@@ -169,20 +169,17 @@ async def deactivate_filter(
 
 @router.post("/bulk", response_model=List[FilterResponse])
 async def create_bulk_filters(
-    supplier_id: int,
-    keywords: List[str],
+    body: FilterBulkCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_admin)
 ):
-    """Create multiple filters at once"""
+    """Create multiple filters at once. Body: { supplier_id: int, keywords: string[] }"""
     filter_service = FilterService(db)
-    
-    # Check if supplier exists
     supplier_service = SupplierService(db)
-    supplier = await supplier_service.get_supplier_by_id(supplier_id)
+    supplier = await supplier_service.get_supplier_by_id(body.supplier_id)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    filters = await filter_service.bulk_create_filters(supplier_id, keywords)
-    
+    if not body.keywords:
+        raise HTTPException(status_code=400, detail="keywords must be non-empty list")
+    filters = await filter_service.bulk_create_filters(body.supplier_id, body.keywords)
     return filters
