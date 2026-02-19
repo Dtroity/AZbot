@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database and other resources"""
+    """Initialize database and other resources. При ошибке БД приложение всё равно стартует — /ready вернёт 503."""
     try:
         from sqlalchemy import text
         async with engine.connect() as conn:
@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
         logger.info("Database connection OK (host=%s, db=%s)", settings.postgres_host, settings.postgres_db)
         await init_db()
     except Exception as e:
-        logger.error("Database connection failed: %s (check POSTGRES_HOST, POSTGRES_PASSWORD)", e)
+        logger.error("Database connection failed: %s — check POSTGRES_HOST, POSTGRES_PASSWORD, volume", e)
     yield
 
 
