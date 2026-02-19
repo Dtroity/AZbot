@@ -109,6 +109,12 @@ nano .env
    # затем снова выполнить инициализацию БД (п. 5.2 из инструкции)
    ```
 
+**Дашборд показывает «Ошибка загрузки данных»:** чаще всего это 503/500 из-за отсутствия доступа API к БД. Проверьте:
+
+1. Ответ API: `curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ready` — должно быть `200`. Если `503`, смотрите тело: `curl -s http://localhost:8000/ready`.
+2. Логи API при старте: `docker compose logs api | head -30` — должна быть строка `Database connection OK`. Если есть `Database connection failed`, исправьте пароль/том по п. 4.1 выше.
+3. После смены пароля или тома: `docker compose up -d api` и снова проверьте `/ready`.
+
 ### 4.2 Клавиатуры (импорты)
 
 Если в логах бота есть ошибка про `supplier_management_keyboard`:

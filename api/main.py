@@ -1,17 +1,27 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .database import init_db
+from .database import init_db, engine
 from .routes import orders_router, suppliers_router, filters_router, stats_router, activity_router
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize database and other resources"""
-    await init_db()
+    try:
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Database connection OK (host=%s, db=%s)", settings.postgres_host, settings.postgres_db)
+        await init_db()
+    except Exception as e:
+        logger.error("Database connection failed: %s (check POSTGRES_HOST, POSTGRES_PASSWORD)", e)
     yield
 
 
@@ -77,6 +87,16 @@ async def ready_check():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Global exception handler"""
+    err_str = str(exc).lower()
+    if "connection" in err_str or "password" in err_str or "database" in err_str or "asyncpg" in err_str or "sqlalchemy" in err_str:
+        logger.exception("Database error")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "database_unavailable",
+                "detail": "Нет доступа к БД. Проверьте POSTGRES_HOST, POSTGRES_PASSWORD и логи api." if not settings.debug else str(exc)
+            }
+        )
     return JSONResponse(
         status_code=500,
         content={

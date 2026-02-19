@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Database (env: POSTGRES_* из docker-compose / .env)
+    # Database (в Docker: POSTGRES_* из docker-compose; pydantic-settings ищет POSTGRES_DB, POSTGRES_HOST и т.д.)
     postgres_db: str = "supply"
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
