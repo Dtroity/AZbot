@@ -54,11 +54,23 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "database": "connected",  # In production, check actual DB connection
-        "redis": "connected"      # In production, check actual Redis connection
-    }
+    return {"status": "healthy"}
+
+
+@app.get("/ready")
+async def ready_check():
+    """Проверка готовности: подключение к БД (для панели и отладки)."""
+    try:
+        from .database import engine
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "ok"}
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "error", "detail": str(e)},
+        )
 
 
 @app.exception_handler(Exception)

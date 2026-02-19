@@ -1,9 +1,8 @@
-import os
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Database
+    # Database (env: POSTGRES_* из docker-compose / .env)
     postgres_db: str = "supply"
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
@@ -32,9 +31,11 @@ class Settings(BaseSettings):
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 settings = Settings()
