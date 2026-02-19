@@ -1,10 +1,9 @@
 from aiogram import Router, F
 from aiogram.types import Message
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from ..database import get_session
-from ..services import OrderService, MessageService
+from ..services import OrderService, MessageService, SupplierService
+from ..config import settings
 
 
 message_router = Router()
@@ -12,19 +11,35 @@ message_router = Router()
 
 @message_router.message()
 async def handle_text_message(message: Message):
-    """Handle general text messages"""
-    # Check if this is a reply to an order message
+    """Обработка текстовых сообщений: ответ на заказ, сообщение от поставщика админу или подсказка."""
     if message.reply_to_message:
         await handle_order_reply(message)
-    else:
-        # Default response
-        await message.answer(
-            "🤔 Используйте кнопки для взаимодействия с заказами или команды:\n"
-            "/start - Главное меню\n"
-            "/my_orders - Мои заказы\n"
-            "/profile - Мой профиль\n"
-            "/help - Справка"
-        )
+        return
+    # Произвольное сообщение от поставщика — переслать админу
+    if message.text and not message.text.strip().startswith("/"):
+        async with get_session() as session:
+            supplier_service = SupplierService(session)
+            supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
+            if supplier and supplier.active and message.from_user.id not in settings.admin_ids:
+                for admin_id in settings.admin_ids:
+                    try:
+                        await message.bot.send_message(
+                            admin_id,
+                            f"📩 <b>Сообщение от поставщика</b> {supplier.name} (ID {supplier.id}):\n\n"
+                            f"{message.text}",
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
+                await message.answer("✅ Сообщение передано администратору.")
+                return
+    await message.answer(
+        "🤔 Используйте кнопки для взаимодействия с заказами или команды:\n"
+        "/start - Главное меню\n"
+        "/my_orders - Мои заказы\n"
+        "/profile - Мой профиль\n"
+        "/help - Справка"
+    )
 
 
 async def handle_order_reply(message: Message):

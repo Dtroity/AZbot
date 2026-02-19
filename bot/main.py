@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from .config import settings
 from .database import init_db
+from .pending_store import set_redis as set_pending_store_redis
 from .handlers import admin_router, order_router, supplier_router, message_router
 
 
@@ -48,10 +49,12 @@ async def main():
         )
         await redis_fsm.ping()
         storage = RedisStorage(redis=redis_fsm)
+        set_pending_store_redis(redis_fsm)
         logger.info("Using Redis storage")
     except Exception as e:
         logger.warning(f"Redis not available, using memory storage: {e}")
         storage = MemoryStorage()
+        set_pending_store_redis(None)
     
     # Initialize dispatcher
     dp = Dispatcher(storage=storage)

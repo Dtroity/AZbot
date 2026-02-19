@@ -20,15 +20,18 @@ def order_keyboard(order_id: str) -> InlineKeyboardMarkup:
     )
     
     builder.adjust(2)
-    
-    # Add message button
     builder.add(
         InlineKeyboardButton(
             text="💬 Сообщение",
             callback_data=f"message:{order_id}"
         )
     )
-    
+    builder.add(
+        InlineKeyboardButton(
+            text="📞 Связаться с покупателем",
+            callback_data=f"contact_buyer:{order_id}"
+        )
+    )
     return builder.as_markup()
 
 
@@ -64,15 +67,18 @@ def order_status_keyboard(order_id: str, status: str) -> InlineKeyboardMarkup:
         )
     
     builder.adjust(2)
-    
-    # Always add message button
     builder.add(
         InlineKeyboardButton(
             text="💬 Сообщение",
             callback_data=f"message:{order_id}"
         )
     )
-    
+    builder.add(
+        InlineKeyboardButton(
+            text="📞 Связаться с покупателем",
+            callback_data=f"contact_buyer:{order_id}"
+        )
+    )
     return builder.as_markup()
 
 

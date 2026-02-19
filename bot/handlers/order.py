@@ -2,15 +2,26 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.enums import ParseMode
+from aiogram.filters import BaseFilter
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session
 from ..services import OrderService, MessageService, SupplierService
 from ..keyboards import order_keyboard, order_status_keyboard
+from ..pending_store import set_pending, get_pending, clear_pending
 
 
 order_router = Router()
+
+
+class PendingOrderMessageFilter(BaseFilter):
+    """Пропускает сообщение только если у пользователя есть ожидающее сообщение по заказу (после нажатия «Сообщение»/«Связаться с покупателем»)."""
+    async def __call__(self, message: Message) -> bool | dict:
+        order_id = await get_pending(message.from_user.id)
+        if order_id:
+            return {"pending_order_id": order_id}
+        return False
 
 
 @order_router.callback_query(F.data.startswith("accept:"))
@@ -142,26 +153,46 @@ async def cancel_order(callback: CallbackQuery):
 
 @order_router.callback_query(F.data.startswith("message:"))
 async def message_order_start(callback: CallbackQuery, state: FSMContext):
-    """Start messaging for order"""
+    """Начало ввода сообщения по заказу («Сообщение»)."""
     order_id = callback.data.split(":")[1]
-    
+    await set_pending(callback.from_user.id, order_id)
     await state.update_data(order_id=order_id)
-    await callback.message.answer(
-        "💬 Введите сообщение для заказа:",
-        reply_markup=None
-    )
     await state.set_state("message_order")
+    await callback.message.answer(
+        "💬 Введите сообщение для заказа (или /cancel для отмены):",
+        reply_markup=None,
+    )
     await callback.answer()
 
 
-@order_router.message(F.state == "message_order")
-async def message_order_process(message: Message, state: FSMContext, bot: Bot):
-    """Process order message (supplier or admin reply)."""
-    data = await state.get_data()
-    order_id = data.get("order_id")
-    if not order_id:
+@order_router.callback_query(F.data.startswith("contact_buyer:"))
+async def contact_buyer_start(callback: CallbackQuery, state: FSMContext):
+    """«Связаться с покупателем» — то же, что ввод сообщения по заказу."""
+    order_id = callback.data.split(":")[1]
+    await set_pending(callback.from_user.id, order_id)
+    await state.update_data(order_id=order_id)
+    await state.set_state("message_order")
+    await callback.message.answer(
+        "📞 Введите сообщение для покупателя (или /cancel для отмены):",
+        reply_markup=None,
+    )
+    await callback.answer()
+
+
+@order_router.message(F.text, PendingOrderMessageFilter())
+async def message_order_process(
+    message: Message, state: FSMContext, bot: Bot, pending_order_id: str
+):
+    """Обработка введённого сообщения по заказу (приоритет через pending_store)."""
+    await state.clear()
+    order_id = pending_order_id
+    if not message.text or not message.text.strip():
+        await message.answer("Введите текст сообщения или /cancel.")
+        return
+    if message.text.strip().lower() == "/cancel":
+        await clear_pending(message.from_user.id)
         await state.clear()
-        await message.answer("⚠️ Сессия сброшена. Нажмите «Сообщение» у нужного заказа и введите текст снова.")
+        await message.answer("Отменено. Можете нажать «Сообщение» или «Связаться с покупателем» у заказа снова.")
         return
     try:
         async with get_session() as session:
@@ -169,7 +200,7 @@ async def message_order_process(message: Message, state: FSMContext, bot: Bot):
             message_service = MessageService(session)
             order = await order_service.get_order(order_id)
             if not order:
-                await state.clear()
+                await clear_pending(message.from_user.id)
                 await message.answer("❌ Заказ не найден.")
                 return
             await message_service.send_message(order_id, message.from_user.id, message.text)
@@ -199,15 +230,15 @@ async def message_order_process(message: Message, state: FSMContext, bot: Bot):
                     except TelegramBadRequest as e:
                         if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
                             raise
-        await state.clear()
+        await clear_pending(message.from_user.id)
         await message.answer("✅ Сообщение отправлено!")
         await message.answer(
             f"📦 Заказ #{order_id}\n{order.text}",
             reply_markup=order_keyboard(order_id),
         )
-    except Exception as e:
-        await state.clear()
-        await message.answer(f"❌ Не удалось отправить сообщение. Попробуйте снова или нажмите «Сообщение» у заказа.")
+    except Exception:
+        await clear_pending(message.from_user.id)
+        await message.answer("❌ Не удалось отправить сообщение. Попробуйте снова или нажмите «Связаться с покупателем» у заказа.")
 
 
 @order_router.callback_query(F.data.startswith("status:"))
