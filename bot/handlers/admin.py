@@ -77,33 +77,42 @@ async def create_order_process(message: Message, state: FSMContext, bot: Bot):
             reply_markup=admin_reply_keyboard(),
         )
         return
+    if message.text and message.text.strip() == BTN_ORDER:
+        await message.answer(
+            "📝 Введите текст заказа (можно несколько строк, каждая строка — отдельный заказ):"
+        )
+        return
     async with get_session() as session:
         order_service = OrderService(session)
-        
-        lines = [line.strip() for line in message.text.split("\n") if line.strip()]
+        lines = [line.strip() for line in (message.text or "").split("\n") if line.strip()]
         created_orders = []
-        
+        if not lines:
+            await message.answer("📝 Введите текст заказа (одна или несколько строк):")
+            return
         for line in lines:
             order = await order_service.create_order(line, message.from_user.id)
             created_orders.append(order)
-            
-            # Notify supplier if assigned
             if order.supplier_id:
                 supplier_service = SupplierService(session)
                 supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
                 if supplier:
                     from ..keyboards import order_keyboard
-                    await bot.send_message(
-                        supplier.telegram_id,
-                        f"🆕 Новый заказ #{order.id}\n\n{order.text}",
-                        reply_markup=order_keyboard(order.id)
-                    )
-        
+                    from aiogram.exceptions import TelegramBadRequest
+                    try:
+                        await bot.send_message(
+                            supplier.telegram_id,
+                            f"🆕 Новый заказ #{order.id}\n\n{order.text}",
+                            reply_markup=order_keyboard(order.id),
+                        )
+                    except TelegramBadRequest as e:
+                        if "chat not found" in str(e).lower() or "user not found" in str(e).lower():
+                            pass
+                        else:
+                            raise
         await message.answer(
-            f"✅ Создано заказов: {len(created_orders)}\n\n" +
-            "\n".join([f"📦 #{order.id}" for order in created_orders])
+            f"✅ Создано заказов: {len(created_orders)}\n\n"
+            + "\n".join([f"📦 #{order.id}" for order in created_orders])
         )
-    
     await state.clear()
 
 
@@ -390,3 +399,14 @@ async def btn_add_supplier(message: Message, state: FSMContext):
         return
     await message.answer("📝 Введите имя поставщика:")
     await state.set_state(ManageSupplierState.waiting_for_name)
+
+
+@admin_router.message(lambda m: m.from_user and _is_admin(m.from_user.id))
+async def admin_fallback_menu(message: Message, state: FSMContext):
+    """Если админ отправил любое сообщение и ни один обработчик не сработал — показать меню (не требовать /start)."""
+    await state.clear()
+    await message.answer(
+        "👋 <b>Главное меню</b>\n\nИспользуйте кнопки ниже.",
+        reply_markup=admin_reply_keyboard(),
+        parse_mode=ParseMode.HTML,
+    )

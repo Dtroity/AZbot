@@ -69,21 +69,25 @@ async def handle_order_reply(message: Message):
         # Add message
         await message_service.send_message(order_id, message.from_user.id, message.text)
         
-        # Notify the other party
+        # Notify the other party (игнорируем chat not found — пользователь мог заблокировать бота)
         bot = message.bot
-        if is_admin and supplier_telegram_id:
-            await bot.send_message(
-                supplier_telegram_id,
-                f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                f"От: Администратор\n"
-                f"Сообщение: {message.text}"
-            )
-        elif is_supplier:
-            await bot.send_message(
-                order.admin_id,
-                f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                f"От: {message.from_user.first_name}\n"
-                f"Сообщение: {message.text}"
-            )
-        
+        from aiogram.exceptions import TelegramBadRequest
+        try:
+            if is_admin and supplier_telegram_id:
+                await bot.send_message(
+                    supplier_telegram_id,
+                    f"💬 Новое сообщение по заказу #{order_id}\n\n"
+                    f"От: Администратор\n"
+                    f"Сообщение: {message.text}"
+                )
+            elif is_supplier:
+                await bot.send_message(
+                    order.admin_id,
+                    f"💬 Новое сообщение по заказу #{order_id}\n\n"
+                    f"От: {message.from_user.first_name}\n"
+                    f"Сообщение: {message.text}"
+                )
+        except TelegramBadRequest as e:
+            if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                raise
         await message.reply("✅ Сообщение отправлено!")

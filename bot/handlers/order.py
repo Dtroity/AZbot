@@ -62,11 +62,15 @@ async def decline_order(callback: CallbackQuery, bot: Bot):
                 new_supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
                 
                 if new_supplier:
-                    await bot.send_message(
-                        new_supplier.telegram_id,
-                        f"🆕 Новый заказ #{order.id}\n\n{order.text}",
-                        reply_markup=order_keyboard(order_id)
-                    )
+                    try:
+                        await bot.send_message(
+                            new_supplier.telegram_id,
+                            f"🆕 Новый заказ #{order.id}\n\n{order.text}",
+                            reply_markup=order_keyboard(order_id)
+                        )
+                    except Exception as e:
+                        if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                            raise
                 
                 await callback.message.edit_text(
                     f"❌ Заказ отклонен и переназначен другому поставщику",
@@ -162,27 +166,32 @@ async def message_order_process(message: Message, state: FSMContext, bot: Bot):
         # Get order details
         order = await order_service.get_order(order_id)
         
-        # Notify admin
+        from aiogram.exceptions import TelegramBadRequest
         if order.admin_id != message.from_user.id:
-            await bot.send_message(
-                order.admin_id,
-                f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                f"От: {message.from_user.first_name}\n"
-                f"Сообщение: {message.text}"
-            )
-        
-        # Notify supplier if message from admin
-        if order.supplier_id and order.supplier_id != message.from_user.id:
-            supplier_service = SupplierService(session)
-            supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
-            
-            if supplier:
+            try:
                 await bot.send_message(
-                    supplier.telegram_id,
+                    order.admin_id,
                     f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                    f"От: Админ\n"
+                    f"От: {message.from_user.first_name}\n"
                     f"Сообщение: {message.text}"
                 )
+            except TelegramBadRequest as e:
+                if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                    raise
+        if order.supplier_id:
+            supplier_service = SupplierService(session)
+            supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
+            if supplier and supplier.telegram_id != message.from_user.id:
+                try:
+                    await bot.send_message(
+                        supplier.telegram_id,
+                        f"💬 Новое сообщение по заказу #{order_id}\n\n"
+                        f"От: Админ\n"
+                        f"Сообщение: {message.text}"
+                    )
+                except TelegramBadRequest as e:
+                    if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                        raise
         
         await message.answer("✅ Сообщение отправлено!")
     
@@ -322,14 +331,16 @@ async def reassign_order_process(message: Message, state: FSMContext, bot: Bot):
                 f"🔄 Заказ переназначен поставщику {supplier.name}"
             )
             
-            # Notify new supplier
             order = await order_service.get_order(order_id)
-            await bot.send_message(
-                supplier.telegram_id,
-                f"🆕 Новый заказ #{order.id}\n\n{order.text}",
-                reply_markup=order_keyboard(order_id)
-            )
-            
+            try:
+                await bot.send_message(
+                    supplier.telegram_id,
+                    f"🆕 Новый заказ #{order.id}\n\n{order.text}",
+                    reply_markup=order_keyboard(order_id)
+                )
+            except Exception as e:
+                if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                    raise
             await message.answer(f"✅ Заказ #{order_id} переназначен поставщику {supplier.name}")
         else:
             await message.answer("❌ Ошибка переназначения заказа")
