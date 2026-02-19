@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, case
 
 from ..dependencies import get_db, get_current_admin
 from ..models.schemas import StatsResponse, OrderStats, SupplierStats
@@ -51,13 +51,14 @@ async def get_order_stats(db: AsyncSession, start_date: datetime = None) -> Orde
     query = select(Order)
     if start_date:
         query = query.where(Order.created_at >= start_date)
+    subq = query.subquery()
     
     # Get total orders
-    result = await db.execute(select(func.count(Order.id)).select_from(query.subquery()))
+    result = await db.execute(select(func.count()).select_from(subq))
     total = result.scalar() or 0
     
     # Get orders by status
-    status_query = select(Order.status, func.count(Order.id)).select_from(query.subquery()).group_by(Order.status)
+    status_query = select(subq.c.status, func.count()).select_from(subq).group_by(subq.c.status)
     status_result = await db.execute(status_query)
     status_counts = dict(status_result.all())
     
@@ -156,13 +157,18 @@ async def get_supplier_performance(
     """Get supplier performance statistics"""
     
     # Get supplier performance data
-    performance_query = select(
-        Supplier.id,
-        Supplier.name,
-        func.count(Order.id).label('total_orders'),
-        func.sum(func.case((Order.status == 'COMPLETED', 1), else_=0)).label('completed_orders'),
-        func.sum(func.case((Order.status == 'DECLINED', 1), else_=0)).label('declined_orders')
-    ).outerjoin(Order, Supplier.id == Order.supplier_id).group_by(Supplier.id, Supplier.name)
+    performance_query = (
+        select(
+            Supplier.id,
+            Supplier.name,
+            func.count(Order.id).label('total_orders'),
+            func.sum(case((Order.status == 'COMPLETED', 1), else_=0)).label('completed_orders'),
+            func.sum(case((Order.status == 'DECLINED', 1), else_=0)).label('declined_orders')
+        )
+        .select_from(Supplier)
+        .outerjoin(Order, Supplier.id == Order.supplier_id)
+        .group_by(Supplier.id, Supplier.name)
+    )
     
     result = await db.execute(performance_query)
     suppliers_data = result.all()
@@ -210,13 +216,16 @@ async def get_activity_stats(
     activity_data = dict(result.all())
     
     # Get hourly activity
-    hourly_query = select(
-        func.date_trunc('hour', ActivityLog.created_at).label('hour'),
-        func.count(ActivityLog.id).label('count')
-    ).where(
-        ActivityLog.created_at >= start_date
-    ).group_by(func.date_trunc('hour', ActivityLog.created_at)).order_by('hour')
-    
+    hour_expr = func.date_trunc('hour', ActivityLog.created_at)
+    hourly_query = (
+        select(
+            hour_expr.label('hour'),
+            func.count(ActivityLog.id).label('count')
+        )
+        .where(ActivityLog.created_at >= start_date)
+        .group_by(hour_expr)
+        .order_by(hour_expr)
+    )
     hourly_result = await db.execute(hourly_query)
     hourly_data = [
         {

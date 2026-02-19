@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from ..dependencies import get_db, get_current_admin
 from ..models.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderMessageResponse
+from db.models import Order
 from bot.services import OrderService, MessageService
 
 

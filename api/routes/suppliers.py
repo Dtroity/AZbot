@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from ..dependencies import get_db, get_current_admin
 from ..models.schemas import SupplierCreate, SupplierUpdate, SupplierResponse, FilterResponse
+from db.models import Supplier
 from bot.services import SupplierService, FilterService
 
 
