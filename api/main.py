@@ -15,12 +15,13 @@ async def lifespan(app: FastAPI):
     yield
 
 
-# Create FastAPI app
+# Create FastAPI app (redirect_slashes=False чтобы дашборд за /api/* не получал 307 на путь без /api/)
 app = FastAPI(
     title="Supply Management API",
     description="Enterprise supply management system API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # Add CORS middleware
