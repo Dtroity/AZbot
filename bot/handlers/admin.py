@@ -28,7 +28,7 @@ admin_router = Router()
 @admin_router.message(Command("start"))
 async def cmd_start(message: Message, bot: Bot):
     """Handle /start command"""
-    if message.from_user.id in settings.admins:
+    if message.from_user.id in settings.admin_ids:
         await message.answer(
             "👋 Добро пожаловать в админ-панель!",
             reply_markup=admin_keyboard()

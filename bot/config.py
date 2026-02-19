@@ -1,20 +1,17 @@
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     # Telegram Bot
     bot_token: str
-    admins: list[int] = []
+    admins: str = ""  # env ADMINS: comma-separated IDs, e.g. "123,456"
 
-    @field_validator("admins", mode="before")
-    @classmethod
-    def parse_admins(cls, v):
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            return [int(x.strip()) for x in v.split(",") if x.strip().isdigit()]
-        return []
+    @property
+    def admin_ids(self) -> list[int]:
+        """Parsed list of admin Telegram IDs from admins string."""
+        if not self.admins:
+            return []
+        return [int(x.strip()) for x in self.admins.split(",") if x.strip().isdigit()]
 
     # Database
     postgres_db: str = "supply"
