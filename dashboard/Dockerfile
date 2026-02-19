@@ -12,6 +12,9 @@ RUN npm ci --only=production
 # Copy source code
 COPY . .
 
+# Increase Node heap for react-scripts build (avoids "JavaScript heap out of memory" on low-RAM hosts)
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
 # Build the application
 RUN npm run build
 
