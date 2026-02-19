@@ -6,7 +6,7 @@ from aiogram.enums import ParseMode
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session
-from ..services import OrderService, MessageService
+from ..services import OrderService, MessageService, SupplierService
 from ..keyboards import order_keyboard, order_status_keyboard
 
 
@@ -17,13 +17,15 @@ order_router = Router()
 async def accept_order(callback: CallbackQuery, bot: Bot):
     """Accept order"""
     order_id = callback.data.split(":")[1]
-    
     async with get_session() as session:
+        supplier_service = SupplierService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(callback.from_user.id)
+        if not supplier:
+            await callback.answer("❌ Вы не зарегистрированы как поставщик", show_alert=True)
+            return
         order_service = OrderService(session)
         message_service = MessageService(session)
-        
-        success = await order_service.accept_order(order_id, callback.from_user.id)
-        
+        success = await order_service.accept_order(order_id, supplier.id)
         if success:
             # Add status message
             await message_service.add_status_message(order_id, "ACCEPTED")
@@ -42,21 +44,19 @@ async def accept_order(callback: CallbackQuery, bot: Bot):
 async def decline_order(callback: CallbackQuery, bot: Bot):
     """Decline order"""
     order_id = callback.data.split(":")[1]
-    
     async with get_session() as session:
+        supplier_service = SupplierService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(callback.from_user.id)
+        if not supplier:
+            await callback.answer("❌ Вы не зарегистрированы как поставщик", show_alert=True)
+            return
         order_service = OrderService(session)
         message_service = MessageService(session)
-        
-        success = await order_service.decline_order(order_id, callback.from_user.id)
-        
+        success = await order_service.decline_order(order_id, supplier.id)
         if success:
-            # Add status message
             await message_service.add_status_message(order_id, "DECLINED")
-            
-            # Check if order was reassigned
             order = await order_service.get_order(order_id)
-            
-            if order.supplier_id and order.supplier_id != callback.from_user.id:
+            if order.supplier_id and order.supplier_id != supplier.id:
                 # Order was reassigned to another supplier
                 supplier_service = SupplierService(session)
                 new_supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
@@ -92,13 +92,15 @@ async def decline_order(callback: CallbackQuery, bot: Bot):
 async def complete_order(callback: CallbackQuery):
     """Complete order"""
     order_id = callback.data.split(":")[1]
-    
     async with get_session() as session:
+        supplier_service = SupplierService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(callback.from_user.id)
+        if not supplier:
+            await callback.answer("❌ Вы не зарегистрированы как поставщик", show_alert=True)
+            return
         order_service = OrderService(session)
         message_service = MessageService(session)
-        
-        success = await order_service.complete_order(order_id, callback.from_user.id)
-        
+        success = await order_service.complete_order(order_id, supplier.id)
         if success:
             # Add status message
             await message_service.add_status_message(order_id, "COMPLETED")
@@ -116,13 +118,15 @@ async def complete_order(callback: CallbackQuery):
 async def cancel_order(callback: CallbackQuery):
     """Cancel order"""
     order_id = callback.data.split(":")[1]
-    
     async with get_session() as session:
+        supplier_service = SupplierService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(callback.from_user.id)
+        if not supplier:
+            await callback.answer("❌ Вы не зарегистрированы как поставщик", show_alert=True)
+            return
         order_service = OrderService(session)
         message_service = MessageService(session)
-        
-        success = await order_service.cancel_order(order_id, callback.from_user.id)
-        
+        success = await order_service.cancel_order(order_id, supplier.id)
         if success:
             # Add status message
             await message_service.add_status_message(order_id, "CANCELLED")
