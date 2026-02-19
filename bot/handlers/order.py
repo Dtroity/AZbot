@@ -156,50 +156,58 @@ async def message_order_start(callback: CallbackQuery, state: FSMContext):
 
 @order_router.message(F.state == "message_order")
 async def message_order_process(message: Message, state: FSMContext, bot: Bot):
-    """Process order message"""
+    """Process order message (supplier or admin reply)."""
     data = await state.get_data()
-    order_id = data["order_id"]
-    
-    async with get_session() as session:
-        order_service = OrderService(session)
-        message_service = MessageService(session)
-        
-        # Add message
-        await message_service.send_message(order_id, message.from_user.id, message.text)
-        
-        # Get order details
-        order = await order_service.get_order(order_id)
-        
-        from aiogram.exceptions import TelegramBadRequest
-        if order.admin_id != message.from_user.id:
-            try:
-                await bot.send_message(
-                    order.admin_id,
-                    f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                    f"От: {message.from_user.first_name}\n"
-                    f"Сообщение: {message.text}"
-                )
-            except TelegramBadRequest as e:
-                if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
-                    raise
-        if order.supplier_id:
-            supplier_service = SupplierService(session)
-            supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
-            if supplier and supplier.telegram_id != message.from_user.id:
+    order_id = data.get("order_id")
+    if not order_id:
+        await state.clear()
+        await message.answer("⚠️ Сессия сброшена. Нажмите «Сообщение» у нужного заказа и введите текст снова.")
+        return
+    try:
+        async with get_session() as session:
+            order_service = OrderService(session)
+            message_service = MessageService(session)
+            order = await order_service.get_order(order_id)
+            if not order:
+                await state.clear()
+                await message.answer("❌ Заказ не найден.")
+                return
+            await message_service.send_message(order_id, message.from_user.id, message.text)
+            from aiogram.exceptions import TelegramBadRequest
+            if order.admin_id != message.from_user.id:
                 try:
                     await bot.send_message(
-                        supplier.telegram_id,
+                        order.admin_id,
                         f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                        f"От: Админ\n"
+                        f"От: {message.from_user.first_name}\n"
                         f"Сообщение: {message.text}"
                     )
                 except TelegramBadRequest as e:
                     if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
                         raise
-        
+            if order.supplier_id:
+                supplier_service = SupplierService(session)
+                supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
+                if supplier and supplier.telegram_id != message.from_user.id:
+                    try:
+                        await bot.send_message(
+                            supplier.telegram_id,
+                            f"💬 Новое сообщение по заказу #{order_id}\n\n"
+                            f"От: Админ\n"
+                            f"Сообщение: {message.text}"
+                        )
+                    except TelegramBadRequest as e:
+                        if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                            raise
+        await state.clear()
         await message.answer("✅ Сообщение отправлено!")
-    
-    await state.clear()
+        await message.answer(
+            f"📦 Заказ #{order_id}\n{order.text}",
+            reply_markup=order_keyboard(order_id),
+        )
+    except Exception as e:
+        await state.clear()
+        await message.answer(f"❌ Не удалось отправить сообщение. Попробуйте снова или нажмите «Сообщение» у заказа.")
 
 
 @order_router.callback_query(F.data.startswith("status:"))

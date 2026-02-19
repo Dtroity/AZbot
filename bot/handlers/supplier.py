@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session
 from ..services import OrderService, SupplierService
-from ..keyboards import order_keyboard
+from ..keyboards import order_keyboard, supplier_reply_keyboard, BTN_MY_ORDERS, BTN_SUPPLIER_HELP, BTN_SUPPLIER_MENU
 from ..config import settings
 
 
@@ -35,22 +35,17 @@ async def supplier_start(message: Message):
         elif supplier.active:
             await message.answer(
                 f"👋 Добро пожаловать, {supplier.name}!\n\n"
-                "Вы активный поставщик. Будьте готовы к поступлению заказов."
+                "Вы активный поставщик. Используйте кнопки ниже.",
+                reply_markup=supplier_reply_keyboard(),
             )
-            
-            # Show active orders
             order_service = OrderService(session)
-            orders = await order_service.get_orders_by_supplier(
-                message.from_user.id, 
-                status="ACCEPTED"
-            )
-            
+            orders = await order_service.get_orders_by_supplier(supplier.id, status="ACCEPTED")
             if orders:
                 await message.answer("📦 Ваши активные заказы:")
                 for order in orders:
                     await message.answer(
                         f"📦 #{order.id}\n{order.text}",
-                        reply_markup=order_keyboard(order.id)
+                        reply_markup=order_keyboard(order.id),
                     )
         else:
             await message.answer(
@@ -76,16 +71,12 @@ async def my_orders(message: Message):
         if not supplier.active:
             await message.answer("❌ Ваш аккаунт неактивен")
             return
-        
-        # Get orders
-        orders = await order_service.get_orders_by_supplier(message.from_user.id)
+        orders = await order_service.get_orders_by_supplier(supplier.id)
         
         if not orders:
-            await message.answer("📭 У вас нет заказов")
+            await message.answer("📭 У вас нет заказов", reply_markup=supplier_reply_keyboard())
             return
-        
         text = f"📦 Ваши заказы ({len(orders)}):\n\n"
-        
         for order in orders:
             status_emoji = {
                 "NEW": "🆕",
@@ -95,12 +86,10 @@ async def my_orders(message: Message):
                 "DECLINED": "❌",
                 "CANCELLED": "❌"
             }.get(order.status, "📋")
-            
             text += f"{status_emoji} #{order.id} - {order.status}\n"
             text += f"📝 {order.text[:50]}...\n"
             text += f"📅 {order.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
-        
-        await message.answer(text)
+        await message.answer(text, reply_markup=supplier_reply_keyboard())
 
 
 @supplier_router.message(Command("profile"))
@@ -121,8 +110,7 @@ async def supplier_profile(message: Message):
         
         # Get order stats
         order_service = OrderService(session)
-        all_orders = await order_service.get_orders_by_supplier(message.from_user.id)
-        
+        all_orders = await order_service.get_orders_by_supplier(supplier.id)
         stats = {
             "total": len(all_orders),
             "completed": len([o for o in all_orders if o.status == "COMPLETED"]),
@@ -148,14 +136,13 @@ async def supplier_profile(message: Message):
         
         text += f"🔍 Ваши фильтры ({len(filters)}):\n"
         if filters:
-            for filter_obj in filters[:10]:  # Show first 10 filters
+            for filter_obj in filters[:10]:
                 text += f"• {filter_obj.keyword}\n"
             if len(filters) > 10:
                 text += f"... и еще {len(filters) - 10}\n"
         else:
             text += "Нет фильтров\n"
-        
-        await message.answer(text)
+        await message.answer(text, reply_markup=supplier_reply_keyboard())
 
 
 @supplier_router.message(Command("help"))
@@ -186,5 +173,46 @@ async def supplier_help(message: Message):
 
 ❓ Если у вас есть вопросы, свяжитесь с администратором.
     """
-    
-    await message.answer(text)
+    await message.answer(text, reply_markup=supplier_reply_keyboard())
+
+
+@supplier_router.message(F.text == BTN_MY_ORDERS)
+async def btn_my_orders(message: Message):
+    """Handle 'Мои заказы' button."""
+    await my_orders(message)
+
+
+@supplier_router.message(F.text == BTN_SUPPLIER_HELP)
+async def btn_supplier_help(message: Message):
+    """Handle 'Справка' button."""
+    await supplier_help(message)
+
+
+@supplier_router.message(F.text == BTN_SUPPLIER_MENU)
+async def btn_supplier_menu(message: Message):
+    """Handle 'Меню' button — show welcome and active orders."""
+    async with get_session() as session:
+        supplier_service = SupplierService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
+        if not supplier:
+            await message.answer("❌ Вы не зарегистрированы как поставщик.")
+            return
+        if not supplier.active:
+            await message.answer(
+                f"👋 {supplier.name}, ваш аккаунт неактивен. Свяжитесь с администратором.",
+                reply_markup=supplier_reply_keyboard(),
+            )
+            return
+        await message.answer(
+            f"👋 {supplier.name}, главное меню. Используйте кнопки ниже.",
+            reply_markup=supplier_reply_keyboard(),
+        )
+        order_service = OrderService(session)
+        orders = await order_service.get_orders_by_supplier(supplier.id, status="ACCEPTED")
+        if orders:
+            await message.answer("📦 Ваши активные заказы:")
+            for order in orders:
+                await message.answer(
+                    f"📦 #{order.id}\n{order.text}",
+                    reply_markup=order_keyboard(order.id),
+                )
