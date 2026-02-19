@@ -23,15 +23,11 @@ async def get_filters(
     filter_service = FilterService(db)
     
     if supplier_id:
-        # Get filters for specific supplier
         filters = await filter_service.get_filters_by_supplier(supplier_id, active_only=active_only)
     elif search:
-        # Search filters by keyword
         filters = await filter_service.search_filters(search)
     else:
-        # Get all filters (would need to implement this method)
-        # For now, return empty list
-        filters = []
+        filters = await filter_service.get_all_filters(active_only=active_only)
     
     # Apply pagination
     filters = filters[skip:skip+limit]

@@ -25,6 +25,14 @@ class FilterService:
         await self._log_activity(supplier_id, "filter_created", f"Filter '{keyword}' created")
         return filter_obj
 
+    async def get_all_filters(self, active_only: bool = True) -> List[Filter]:
+        """Get all filters (for list in dashboard)"""
+        query = select(Filter)
+        if active_only:
+            query = query.where(Filter.active == True)
+        result = await self.session.execute(query.order_by(Filter.supplier_id, Filter.priority.desc(), Filter.keyword))
+        return result.scalars().all()
+
     async def get_filters_by_supplier(self, supplier_id: int, active_only: bool = True) -> List[Filter]:
         """Get all filters for supplier"""
         query = select(Filter).where(Filter.supplier_id == supplier_id)
