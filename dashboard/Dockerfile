@@ -1,4 +1,4 @@
-FROM node:18-alpine as build
+FROM node:18-alpine AS build
 
 # Set working directory
 WORKDIR /app
@@ -12,11 +12,8 @@ RUN npm ci --only=production
 # Copy source code
 COPY . .
 
-# Increase Node heap for react-scripts build (avoids "JavaScript heap out of memory" on low-RAM hosts)
-ENV NODE_OPTIONS=--max-old-space-size=4096
-
-# Build the application
-RUN npm run build
+# Build (limit Node heap to avoid OOM on low-RAM VPS; increase to 4096 if server has 4GB+ RAM)
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # Production stage
 FROM nginx:alpine

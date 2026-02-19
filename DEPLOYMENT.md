@@ -100,7 +100,22 @@ git commit -m "Add package-lock.json for dashboard build"
 
 Без этого шага образ Dashboard не соберётся.
 
-### 4.3 Версия docker-compose
+### 4.3 Dashboard: не хватает памяти при сборке (OOM)
+
+Если при `docker compose build dashboard` процесс падает с «system ran out of memory» или «exited too early»:
+
+1. **Добавьте swap на VPS** (2 GB), затем снова запустите сборку:
+   ```bash
+   sudo fallocate -l 2G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   docker compose build dashboard --no-cache
+   ```
+2. **Либо не собирайте Dashboard на VPS:** закомментируйте сервисы `dashboard` и `nginx` в `docker-compose.yml` и поднимайте только `db`, `redis`, `api`, `bot`. Dashboard можно собрать на своей машине (где больше RAM) и раздавать статику через свой веб-сервер или позже перенести готовый `build/` на сервер.
+
+### 4.4 Версия docker-compose
 
 В `docker-compose.yml` указано `version: "3.9"`. Для Docker Compose V2 плагина поле `version` необязательно — можно оставить или обновить до актуальной схемы при необходимости.
 
