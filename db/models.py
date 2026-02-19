@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, String, Boolean, Integer, ForeignKey, DateTime, Text, func
+from sqlalchemy import BigInteger, String, Boolean, Integer, ForeignKey, DateTime, Text, func, Column
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs
 

@@ -52,9 +52,17 @@ async def handle_order_reply(message: Message):
             await message.answer("❌ Заказ не найден")
             return
         
-        # Check if user is admin or assigned supplier
-        if (message.from_user.id != order.admin_id and 
-            order.supplier_id != message.from_user.id):
+        # supplier_id в Order — это ID из таблицы suppliers, не telegram_id; сравниваем с telegram
+        from ..services import SupplierService
+        supplier_service = SupplierService(session)
+        supplier_telegram_id = None
+        if order.supplier_id:
+            supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
+            supplier_telegram_id = supplier.telegram_id if supplier else None
+        
+        is_admin = message.from_user.id == order.admin_id
+        is_supplier = supplier_telegram_id is not None and message.from_user.id == supplier_telegram_id
+        if not is_admin and not is_supplier:
             await message.answer("❌ У вас нет доступа к этому заказу")
             return
         
@@ -62,25 +70,15 @@ async def handle_order_reply(message: Message):
         await message_service.send_message(order_id, message.from_user.id, message.text)
         
         # Notify the other party
-        from aiogram import Bot
         bot = message.bot
-        
-        if message.from_user.id == order.admin_id and order.supplier_id:
-            # Notify supplier
-            from ..services import SupplierService
-            supplier_service = SupplierService(session)
-            supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
-            
-            if supplier:
-                await bot.send_message(
-                    supplier.telegram_id,
-                    f"💬 Новое сообщение по заказу #{order_id}\n\n"
-                    f"От: Администратор\n"
-                    f"Сообщение: {message.text}"
-                )
-        
-        elif order.supplier_id == message.from_user.id:
-            # Notify admin
+        if is_admin and supplier_telegram_id:
+            await bot.send_message(
+                supplier_telegram_id,
+                f"💬 Новое сообщение по заказу #{order_id}\n\n"
+                f"От: Администратор\n"
+                f"Сообщение: {message.text}"
+            )
+        elif is_supplier:
             await bot.send_message(
                 order.admin_id,
                 f"💬 Новое сообщение по заказу #{order_id}\n\n"

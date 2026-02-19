@@ -203,6 +203,38 @@ print('Database initialized.')
 docker compose exec db psql -U postgres -d supply -c '\dt'
 ```
 
+### 5.3 Полная переустановка (чистый деплой или после смены схемы БД)
+
+Если на сервере нет важных данных или вы обновляете код (в т.ч. модели БД), выполните полную пересборку и подъём:
+
+```bash
+cd /opt/AZbot   # или ваш путь
+git pull
+
+# Остановить и при необходимости удалить тома (данные БД будут потеряны)
+docker compose down
+# Опционально: docker volume rm azbot_postgres_data 2>/dev/null || true
+
+# Собрать все образы без кэша (важно: бот и API должны подхватить актуальный db/models.py)
+docker compose build --no-cache
+
+# Запустить все сервисы
+docker compose up -d
+
+# Дождаться готовности БД и Redis (5–10 сек), затем инициализировать таблицы
+sleep 5
+docker compose exec api python -c "from api.database import init_db; import asyncio; asyncio.run(init_db()); print('OK')"
+
+# Проверка API
+curl -s http://localhost:8000/ready
+# Ожидается: {"status":"ready","database":"ok"} или аналогично
+
+curl -s http://localhost:8000/suppliers/
+# Ожидается: [] или массив поставщиков
+```
+
+**Важно:** после изменений в `db/models.py` (типы полей, новые таблицы) обязательно выполнять `docker compose build --no-cache` для образов `api` и `bot`, иначе контейнеры могут использовать старую схему (например, `orders.id` как INTEGER вместо VARCHAR).
+
 ---
 
 ## 6. Проверка работы бота
