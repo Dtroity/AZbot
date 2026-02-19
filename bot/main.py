@@ -37,17 +37,17 @@ async def main():
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     
-    # Initialize storage (Redis or Memory)
+    # Initialize storage (Redis or Memory). Aiogram RedisStorage requires async Redis.
     try:
-        import redis
-        redis_client = redis.Redis(
+        from redis.asyncio import Redis
+        redis_fsm = Redis(
             host=settings.redis_host,
             port=settings.redis_port,
             db=settings.redis_db,
-            decode_responses=True
+            decode_responses=True,
         )
-        redis_client.ping()  # Test connection
-        storage = RedisStorage(redis_client)
+        await redis_fsm.ping()
+        storage = RedisStorage(redis=redis_fsm)
         logger.info("Using Redis storage")
     except Exception as e:
         logger.warning(f"Redis not available, using memory storage: {e}")
