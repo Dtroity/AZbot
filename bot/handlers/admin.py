@@ -401,7 +401,10 @@ async def btn_add_supplier(message: Message, state: FSMContext):
     await state.set_state(ManageSupplierState.waiting_for_name)
 
 
-@admin_router.message(lambda m: m.from_user and _is_admin(m.from_user.id))
+@admin_router.message(
+    lambda m: m.from_user and _is_admin(m.from_user.id),
+    ~F.state == "message_order",  # не перехватывать ввод сообщения для заказа
+)
 async def admin_fallback_menu(message: Message, state: FSMContext):
     """Если админ отправил любое сообщение и ни один обработчик не сработал — показать меню (не требовать /start)."""
     await state.clear()

@@ -56,9 +56,10 @@ async def main():
     # Initialize dispatcher
     dp = Dispatcher(storage=storage)
     
-    # Include routers
-    dp.include_router(admin_router)
+    # Include routers: order_router перед admin_router, чтобы состояние message_order
+    # обрабатывалось при вводе сообщения для заказа (иначе админ попадает в admin_fallback_menu)
     dp.include_router(order_router)
+    dp.include_router(admin_router)
     dp.include_router(supplier_router)
     dp.include_router(message_router)
     
