@@ -106,7 +106,12 @@ nano .env
    docker volume rm azbot_postgres_data 2>/dev/null || true
    echo "POSTGRES_PASSWORD=postgres" >> .env   # или свой пароль
    docker compose up -d
-   # затем снова выполнить инициализацию БД (п. 5.2 из инструкции)
+   sleep 10
+   docker compose exec api python -c "from api.database import init_db; import asyncio; asyncio.run(init_db()); print('OK')"
+   docker compose restart api
+   sleep 5
+   curl -s http://localhost:8000/ready
+   # Должно быть: {"status":"ready","database":"ok"}
    ```
 
 **Дашборд показывает «Ошибка загрузки данных»:** чаще всего это 503/500 из-за отсутствия доступа API к БД. Проверьте:

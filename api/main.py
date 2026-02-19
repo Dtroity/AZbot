@@ -78,6 +78,7 @@ async def ready_check():
             await conn.execute(text("SELECT 1"))
         return {"status": "ready", "database": "ok"}
     except Exception as e:
+        logger.exception("Ready check failed")
         return JSONResponse(
             status_code=503,
             content={"status": "not_ready", "database": "error", "detail": str(e)},
