@@ -111,7 +111,21 @@ class OrderResponse(OrderBase):
     completed_at: Optional[datetime] = None
     supplier: Optional[SupplierResponse] = None
     messages: List["OrderMessageResponse"] = []
-    
+
+    class Config:
+        from_attributes = True
+
+
+class OrderListResponse(OrderBase):
+    """Список заказов без messages — избегаем lazy load в async."""
+    id: str
+    admin_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    assigned_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    supplier: Optional[SupplierResponse] = None
+
     class Config:
         from_attributes = True
 

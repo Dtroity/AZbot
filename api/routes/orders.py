@@ -5,7 +5,7 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
 from ..dependencies import get_db, get_current_admin
-from ..models.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderMessageResponse
+from ..models.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderListResponse, OrderMessageResponse
 from db.models import Order
 from bot.services import OrderService, MessageService
 
@@ -13,7 +13,7 @@ from bot.services import OrderService, MessageService
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-@router.get("/", response_model=List[OrderResponse])
+@router.get("/", response_model=List[OrderListResponse])
 async def get_orders(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
