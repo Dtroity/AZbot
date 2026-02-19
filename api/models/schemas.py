@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -11,8 +11,22 @@ class SupplierBase(BaseModel):
     role: str = "supplier"
 
 
-class SupplierCreate(SupplierBase):
-    pass
+class SupplierCreate(BaseModel):
+    """Создание поставщика: telegram_id опционален (0 до регистрации в боте)."""
+    name: str
+    telegram_id: Optional[int] = None
+    active: bool = True
+    role: str = "supplier"
+
+    @field_validator("telegram_id", mode="before")
+    @classmethod
+    def empty_telegram_to_none(cls, v):
+        if v is None or v == "" or v == []:
+            return None
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
 
 
 class SupplierUpdate(BaseModel):

@@ -21,12 +21,11 @@ class OrderService:
         """Create new order and try to assign to supplier"""
         order_id = self.generate_id()
         
-        order = Order(
-            id=order_id,
-            text=text,
-            status="NEW",
-            admin_id=admin_id
-        )
+        order = Order()
+        order.id = order_id
+        order.text = text
+        order.status = "NEW"
+        order.admin_id = admin_id
         
         self.session.add(order)
         await self.session.flush()

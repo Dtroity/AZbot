@@ -65,13 +65,14 @@ async def create_supplier(
     """Create new supplier"""
     supplier_service = SupplierService(db)
     
-    # Check if supplier with this telegram_id already exists
-    existing = await supplier_service.get_supplier_by_telegram(supplier.telegram_id)
-    if existing:
-        raise HTTPException(status_code=400, detail="Supplier with this telegram_id already exists")
+    telegram_id = supplier.telegram_id or 0
+    if telegram_id != 0:
+        existing = await supplier_service.get_supplier_by_telegram(telegram_id)
+        if existing:
+            raise HTTPException(status_code=400, detail="Supplier with this telegram_id already exists")
     
     new_supplier = await supplier_service.create_supplier(
-        supplier.telegram_id,
+        telegram_id,
         supplier.name,
         supplier.role
     )
