@@ -74,18 +74,49 @@ nano .env
 
 **Важно:** В `bot/config.py` поле читается как `bot_token` — Pydantic берёт значение из переменной `BOT_TOKEN` автоматически. Поле `admins` парсится из строки `ADMINS` (через запятую). Убедитесь, что в `ADMINS` только числа, без пробелов: `123,456`.
 
+**Пароль БД:** В `docker-compose.yml` для сервисов `db`, `bot`, `api` используется переменная `POSTGRES_PASSWORD` из `.env` (по умолчанию `postgres`). Пароль в `.env` **должен совпадать** с паролем, под которым была впервые инициализирована база (том `postgres_data`). Если меняли пароль после первого запуска — укажите в `.env` тот пароль, с которым создавался том, либо пересоздайте том и задайте новый пароль везде.
+
 ---
 
 ## 4. Исправление известных проблем перед деплоем
 
-### 4.1 Клавиатуры (импорты)
+### 4.1 Ошибка «password authentication failed for user "postgres"» (бот / API)
+
+Бот или API не могут подключиться к PostgreSQL: пароль в окружении не совпадает с паролем уже созданной БД.
+
+**Что сделать:**
+
+1. Проверьте `.env` в каталоге с `docker-compose.yml`:
+   ```bash
+   grep POSTGRES_PASSWORD .env
+   ```
+2. Если тома БД вы **никогда не пересоздавали**, то при первом запуске контейнер `db` был создан с паролем из compose (раньше было жёстко `postgres`). В `.env` должно быть:
+   ```env
+   POSTGRES_PASSWORD=postgres
+   ```
+3. Если вы **меняли** пароль или пересоздавали том с другим паролем — в `.env` укажите **именно тот** пароль, с которым сейчас инициализирована БД в томе.
+4. Перезапустите сервисы, чтобы они подхватили `.env`:
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+5. Если не помните пароль или хотите задать новый — пересоздайте том (все данные БД будут удалены):
+   ```bash
+   docker compose down
+   docker volume rm azbot_postgres_data 2>/dev/null || true
+   echo "POSTGRES_PASSWORD=postgres" >> .env   # или свой пароль
+   docker compose up -d
+   # затем снова выполнить инициализацию БД (п. 5.2 из инструкции)
+   ```
+
+### 4.2 Клавиатуры (импорты)
 
 Если в логах бота есть ошибка про `supplier_management_keyboard`:
 
 - Проверьте `bot/handlers/admin.py`: импортируйте только то, что реально есть в `bot/keyboards/__init__.py` (`order_keyboard`, `order_status_keyboard`, `admin_keyboard`).
 - Либо добавьте в `bot/keyboards/__init__.py` экспорт `supplier_management_keyboard`, если такая клавиатура есть в `bot/keyboards/admin.py`.
 
-### 4.2 Dashboard: package-lock.json
+### 4.3 Dashboard: package-lock.json
 
 Сборка Dashboard использует `npm ci`, которому нужен `package-lock.json`:
 
@@ -100,7 +131,7 @@ git commit -m "Add package-lock.json for dashboard build"
 
 Без этого шага образ Dashboard не соберётся.
 
-### 4.3 Dashboard: не хватает памяти при сборке (OOM)
+### 4.4 Dashboard: не хватает памяти при сборке (OOM)
 
 Если при `docker compose build dashboard` процесс падает с «system ran out of memory» или «exited too early»:
 
@@ -115,7 +146,7 @@ git commit -m "Add package-lock.json for dashboard build"
    ```
 2. **Либо не собирайте Dashboard на VPS:** закомментируйте сервисы `dashboard` и `nginx` в `docker-compose.yml` и поднимайте только `db`, `redis`, `api`, `bot`. Dashboard можно собрать на своей машине (где больше RAM) и раздавать статику через свой веб-сервер или позже перенести готовый `build/` на сервер.
 
-### 4.4 Версия docker-compose
+### 4.5 Версия docker-compose
 
 В `docker-compose.yml` указано `version: "3.9"`. Для Docker Compose V2 плагина поле `version` необязательно — можно оставить или обновить до актуальной схемы при необходимости.
 
