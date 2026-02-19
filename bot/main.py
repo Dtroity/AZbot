@@ -34,10 +34,7 @@ async def main():
     # Initialize bot
     bot = Bot(
         token=settings.bot_token,
-        default=DefaultBotProperties(
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True
-        )
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     
     # Initialize storage (Redis or Memory)
