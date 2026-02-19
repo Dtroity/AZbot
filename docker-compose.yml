@@ -115,12 +115,13 @@ services:
       - supply_network
     # Ограничение памяти: nginx + статика укладываются в 128MB; меньше шанс OOM на слабом VPS
     mem_limit: 128m
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 45s
-      timeout: 10s
-      start_period: 30s
-      retries: 5
+    # healthcheck отключён: в образе может не быть curl до пересборки; контейнер лёгкий, рестарты не нужны
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:3000"]
+    #   interval: 45s
+    #   timeout: 10s
+    #   start_period: 30s
+    #   retries: 5
 
   nginx:
     image: nginx:alpine
