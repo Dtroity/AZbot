@@ -1,38 +1,45 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+
+# Тексты кнопок нижней панели (для обработчиков и единообразия)
+BTN_ORDER = "📦 Создать заказ"
+BTN_SUPPLIERS = "👥 Поставщики"
+BTN_STATS = "📊 Статистика"
+BTN_SEARCH = "🔍 Поиск заказов"
+BTN_ADD_SUPPLIER = "➕ Добавить поставщика"
+BTN_MENU = "◀️ Главное меню"
+
+
+def admin_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Закреплённая внизу панель управления для админа (ReplyKeyboard)."""
+    builder = ReplyKeyboardBuilder()
+    builder.add(KeyboardButton(text=BTN_ORDER))
+    builder.add(KeyboardButton(text=BTN_SUPPLIERS))
+    builder.add(KeyboardButton(text=BTN_STATS))
+    builder.add(KeyboardButton(text=BTN_SEARCH))
+    builder.add(KeyboardButton(text=BTN_ADD_SUPPLIER))
+    builder.add(KeyboardButton(text=BTN_MENU))
+    builder.adjust(2, 2, 2)  # по 2 кнопки в ряд
+    return builder.as_markup(resize_keyboard=True, is_persistent=True)
 
 
 def admin_keyboard() -> InlineKeyboardMarkup:
-    """Main admin menu keyboard"""
+    """Inline-меню под сообщением (дублирует панель для удобства)."""
     builder = InlineKeyboardBuilder()
-    
     builder.add(
-        InlineKeyboardButton(
-            text="📦 Создать заказ",
-            callback_data="create_order"
-        )
+        InlineKeyboardButton(text="📦 Создать заказ", callback_data="create_order"),
+        InlineKeyboardButton(text="👥 Поставщики", callback_data="suppliers"),
     )
     builder.add(
-        InlineKeyboardButton(
-            text="👥 Поставщики",
-            callback_data="suppliers"
-        )
+        InlineKeyboardButton(text="📊 Статистика", callback_data="stats"),
+        InlineKeyboardButton(text="🔍 Поиск заказов", callback_data="search_orders"),
     )
-    builder.add(
-        InlineKeyboardButton(
-            text="📊 Статистика",
-            callback_data="stats"
-        )
-    )
-    builder.add(
-        InlineKeyboardButton(
-            text="🔍 Поиск заказов",
-            callback_data="search_orders"
-        )
-    )
-    
     builder.adjust(2)
-    
     return builder.as_markup()
 
 
