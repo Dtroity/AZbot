@@ -17,6 +17,7 @@ RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # Production stage
 FROM nginx:alpine
+RUN apk add --no-cache curl
 
 # Copy built application
 COPY --from=build /app/build /usr/share/nginx/html

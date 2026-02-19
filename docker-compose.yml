@@ -113,11 +113,14 @@ services:
       - api
     networks:
       - supply_network
+    # Ограничение памяти: nginx + статика укладываются в 128MB; меньше шанс OOM на слабом VPS
+    mem_limit: 128m
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
+      interval: 45s
       timeout: 10s
-      retries: 3
+      start_period: 30s
+      retries: 5
 
   nginx:
     image: nginx:alpine
@@ -134,6 +137,7 @@ services:
       - dashboard
     networks:
       - supply_network
+    mem_limit: 64m
 
 volumes:
   postgres_data:
