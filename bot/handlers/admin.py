@@ -6,6 +6,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncpg
 
 from ..database import get_session
 from ..services import OrderService, SupplierService, FilterService
@@ -22,6 +23,7 @@ from ..keyboards import (
     BTN_MENU,
 )
 from ..config import settings
+from ..utils import order_status_ru
 
 
 class CreateOrderState(StatesGroup):
@@ -172,25 +174,24 @@ async def add_supplier_complete(message: Message, state: FSMContext):
     name = data["name"]
     
     keywords = [kw.strip() for kw in message.text.split(",") if kw.strip()]
-    
-    async with get_session() as session:
-        supplier_service = SupplierService(session)
-        filter_service = FilterService(session)
-        
-        # Create supplier (temporarily with telegram_id 0, will be updated when they register)
-        supplier = await supplier_service.create_supplier(0, name, "supplier")
-        
-        # Create filters
-        if keywords:
-            await filter_service.bulk_create_filters(supplier.id, keywords)
-        
+    try:
+        async with get_session() as session:
+            supplier_service = SupplierService(session)
+            filter_service = FilterService(session)
+            supplier = await supplier_service.create_supplier(0, name, "supplier")
+            if keywords:
+                await filter_service.bulk_create_filters(supplier.id, keywords)
+            await message.answer(
+                f"✅ Поставщик '{name}' создан!\n\n"
+                f"ID: {supplier.id}\n"
+                f"Фильтры: {', '.join(keywords) if keywords else 'нет'}\n\n"
+                f"Поставщик сможет зарегистрироваться в боте командой /start"
+            )
+    except (asyncpg.exceptions.InvalidPasswordError, OSError, Exception):
         await message.answer(
-            f"✅ Поставщик '{name}' создан!\n\n"
-            f"ID: {supplier.id}\n"
-            f"Фильтры: {', '.join(keywords) if keywords else 'нет'}\n\n"
-            f"Поставщик сможет зарегистрироваться в боте командой /start"
+            "Ошибка подключения к базе данных. Проверьте POSTGRES_PASSWORD в .env и перезапустите бота.",
+            reply_markup=admin_reply_keyboard(),
         )
-    
     await state.clear()
 
 
@@ -241,50 +242,44 @@ async def show_stats_menu(callback: CallbackQuery):
 @admin_router.callback_query(F.data.startswith("stats_"))
 async def show_stats(callback: CallbackQuery):
     """Show statistics for period"""
-    period = callback.data.split("_")[1]
-    
-    async with get_session() as session:
-        order_service = OrderService(session)
-        
-        # Get admin's orders
-        orders = await order_service.get_orders_by_admin(callback.from_user.id, limit=1000)
-        
-        # Filter by period (simplified for now)
-        from datetime import datetime, timedelta
-        
-        now = datetime.utcnow()
-        if period == "today":
-            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        elif period == "week":
-            start_date = now - timedelta(days=7)
-        elif period == "month":
-            start_date = now - timedelta(days=30)
-        else:  # all
-            start_date = None
-        
-        if start_date:
-            filtered_orders = [o for o in orders if o.created_at >= start_date]
-        else:
-            filtered_orders = orders
-        
-        # Calculate stats
-        total = len(filtered_orders)
-        completed = len([o for o in filtered_orders if o.status == "COMPLETED"])
-        pending = len([o for o in filtered_orders if o.status in ["NEW", "ASSIGNED", "ACCEPTED"]])
-        cancelled = len([o for o in filtered_orders if o.status in ["DECLINED", "CANCELLED"]])
-        
-        text = f"📊 Статистика за период: {period}\n\n"
-        text += f"📦 Всего заказов: {total}\n"
-        text += f"✅ Выполнено: {completed}\n"
-        text += f"⏳ В работе: {pending}\n"
-        text += f"❌ Отменено: {cancelled}\n"
-        
-        if total > 0:
-            completion_rate = (completed / total) * 100
-            text += f"\n📈 Процент выполнения: {completion_rate:.1f}%"
-        
-        await callback.message.answer(text, reply_markup=admin_keyboard())
-    
+    try:
+        period = callback.data.split("_")[1]
+        async with get_session() as session:
+            order_service = OrderService(session)
+            orders = await order_service.get_orders_by_admin(callback.from_user.id, limit=1000)
+            from datetime import datetime, timedelta
+            now = datetime.utcnow()
+            if period == "today":
+                start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            elif period == "week":
+                start_date = now - timedelta(days=7)
+            elif period == "month":
+                start_date = now - timedelta(days=30)
+            else:
+                start_date = None
+            if start_date:
+                filtered_orders = [o for o in orders if o.created_at >= start_date]
+            else:
+                filtered_orders = orders
+            total = len(filtered_orders)
+            completed = len([o for o in filtered_orders if o.status == "COMPLETED"])
+            pending = len([o for o in filtered_orders if o.status in ["NEW", "ASSIGNED", "ACCEPTED"]])
+            cancelled = len([o for o in filtered_orders if o.status in ["DECLINED", "CANCELLED"]])
+            period_label = {"today": "Сегодня", "week": "Неделя", "month": "Месяц", "all": "Всё время"}.get(period, period)
+            text = f"📊 Статистика: {period_label}\n\n"
+            text += f"📦 Всего заказов: {total}\n"
+            text += f"✅ Выполнено: {completed}\n"
+            text += f"⏳ В работе: {pending}\n"
+            text += f"❌ Отменено: {cancelled}\n"
+            if total > 0:
+                completion_rate = (completed / total) * 100
+                text += f"\n📈 Процент выполнения: {completion_rate:.1f}%"
+            await callback.message.answer(text, reply_markup=admin_keyboard())
+    except (asyncpg.exceptions.InvalidPasswordError, OSError, Exception):
+        await callback.message.answer(
+            "Ошибка подключения к базе данных. Проверьте POSTGRES_PASSWORD в .env и перезапустите бота.",
+            reply_markup=admin_reply_keyboard(),
+        )
     await callback.answer()
 
 
@@ -303,25 +298,28 @@ async def search_orders_process(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("◀️ Главное меню", reply_markup=admin_reply_keyboard())
         return
-    async with get_session() as session:
-        order_service = OrderService(session)
-        orders = await order_service.search_orders(message.text)
-        
-        if not orders:
-            await message.answer(
-                "📭 Заказы не найдены",
-                reply_markup=admin_reply_keyboard(),
-            )
-        else:
-            text = f"🔍 Найдено заказов: {len(orders)}\n\n"
-            for order in orders[:20]:  # Limit to 20 results
-                supplier_name = order.supplier.name if order.supplier else "Не назначен"
-                text += f"📦 #{order.id} - {order.status}\n"
-                text += f"👤 {supplier_name}\n"
-                text += f"📝 {order.text[:50]}...\n\n"
-            
-            await message.answer(text, reply_markup=admin_reply_keyboard())
-    
+    try:
+        async with get_session() as session:
+            order_service = OrderService(session)
+            orders = await order_service.search_orders(message.text)
+            if not orders:
+                await message.answer(
+                    "📭 Заказы не найдены",
+                    reply_markup=admin_reply_keyboard(),
+                )
+            else:
+                text = f"🔍 Найдено заказов: {len(orders)}\n\n"
+                for order in orders[:20]:
+                    supplier_name = order.supplier.name if order.supplier else "Не назначен"
+                    text += f"📦 #{order.id} - {order_status_ru(order.status)}\n"
+                    text += f"👤 {supplier_name}\n"
+                    text += f"📝 {order.text[:50]}...\n\n"
+                await message.answer(text, reply_markup=admin_reply_keyboard())
+    except (asyncpg.exceptions.InvalidPasswordError, OSError, Exception):
+        await message.answer(
+            "Ошибка подключения к базе данных. Проверьте POSTGRES_PASSWORD в .env и перезапустите бота.",
+            reply_markup=admin_reply_keyboard(),
+        )
     await state.clear()
 
 
@@ -354,24 +352,30 @@ async def btn_create_order(message: Message, state: FSMContext):
 async def btn_suppliers(message: Message):
     if not _is_admin(message.from_user.id):
         return
-    async with get_session() as session:
-        supplier_service = SupplierService(session)
-        suppliers = await supplier_service.get_all_suppliers()
-        if not suppliers:
+    try:
+        async with get_session() as session:
+            supplier_service = SupplierService(session)
+            suppliers = await supplier_service.get_all_suppliers()
+            if not suppliers:
+                await message.answer(
+                    "📭 Поставщики не найдены",
+                    reply_markup=admin_reply_keyboard(),
+                )
+                return
+            text = "👥 <b>Список поставщиков</b>\n\n"
+            for s in suppliers:
+                status = "✅" if s.active else "❌"
+                text += f"{status} {s.name} (ID: {s.id})\n"
+            text += "\nИспользуйте кнопку «➕ Добавить поставщика» или /add_supplier"
             await message.answer(
-                "📭 Поставщики не найдены",
+                text,
                 reply_markup=admin_reply_keyboard(),
+                parse_mode=ParseMode.HTML,
             )
-            return
-        text = "👥 <b>Список поставщиков</b>\n\n"
-        for s in suppliers:
-            status = "✅" if s.active else "❌"
-            text += f"{status} {s.name} (ID: {s.id})\n"
-        text += "\nИспользуйте кнопку «➕ Добавить поставщика» или /add_supplier"
+    except (asyncpg.exceptions.InvalidPasswordError, OSError, Exception) as e:
         await message.answer(
-            text,
+            "Ошибка подключения к базе данных. Проверьте настройки (POSTGRES_PASSWORD в .env) и перезапустите бота.",
             reply_markup=admin_reply_keyboard(),
-            parse_mode=ParseMode.HTML,
         )
 
 

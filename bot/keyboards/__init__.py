@@ -13,6 +13,7 @@ from .admin import (
     BTN_MENU,
     BTN_MY_ORDERS,
     BTN_SUPPLIER_HELP,
+    BTN_CONTACT_BUYER,
     BTN_SUPPLIER_MENU,
 )
 
@@ -32,5 +33,6 @@ __all__ = [
     "BTN_MENU",
     "BTN_MY_ORDERS",
     "BTN_SUPPLIER_HELP",
+    "BTN_CONTACT_BUYER",
     "BTN_SUPPLIER_MENU",
 ]

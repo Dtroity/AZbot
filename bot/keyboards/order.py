@@ -5,32 +5,13 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 def order_keyboard(order_id: str) -> InlineKeyboardMarkup:
     """Main order action keyboard for suppliers"""
     builder = InlineKeyboardBuilder()
-    
     builder.add(
-        InlineKeyboardButton(
-            text="✅ Принять",
-            callback_data=f"accept:{order_id}"
-        )
+        InlineKeyboardButton(text="✅ Принять", callback_data=f"accept:{order_id}"),
+        InlineKeyboardButton(text="❌ Отклонить", callback_data=f"decline:{order_id}"),
     )
-    builder.add(
-        InlineKeyboardButton(
-            text="❌ Отклонить",
-            callback_data=f"decline:{order_id}"
-        )
-    )
-    
     builder.adjust(2)
     builder.add(
-        InlineKeyboardButton(
-            text="💬 Сообщение",
-            callback_data=f"message:{order_id}"
-        )
-    )
-    builder.add(
-        InlineKeyboardButton(
-            text="📞 Связаться с покупателем",
-            callback_data=f"contact_buyer:{order_id}"
-        )
+        InlineKeyboardButton(text="💬 Сообщение", callback_data=f"message:{order_id}")
     )
     return builder.as_markup()
 
@@ -71,12 +52,6 @@ def order_status_keyboard(order_id: str, status: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="💬 Сообщение",
             callback_data=f"message:{order_id}"
-        )
-    )
-    builder.add(
-        InlineKeyboardButton(
-            text="📞 Связаться с покупателем",
-            callback_data=f"contact_buyer:{order_id}"
         )
     )
     return builder.as_markup()

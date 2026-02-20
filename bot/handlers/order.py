@@ -10,6 +10,7 @@ from ..database import get_session
 from ..services import OrderService, MessageService, SupplierService
 from ..keyboards import order_keyboard, order_status_keyboard
 from ..pending_store import set_pending, get_pending, clear_pending
+from ..utils import order_status_ru
 
 
 order_router = Router()
@@ -165,20 +166,6 @@ async def message_order_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@order_router.callback_query(F.data.startswith("contact_buyer:"))
-async def contact_buyer_start(callback: CallbackQuery, state: FSMContext):
-    """«Связаться с покупателем» — то же, что ввод сообщения по заказу."""
-    order_id = callback.data.split(":")[1]
-    await set_pending(callback.from_user.id, order_id)
-    await state.update_data(order_id=order_id)
-    await state.set_state("message_order")
-    await callback.message.answer(
-        "📞 Введите сообщение для покупателя (или /cancel для отмены):",
-        reply_markup=None,
-    )
-    await callback.answer()
-
-
 @order_router.message(F.text, PendingOrderMessageFilter())
 async def message_order_process(
     message: Message, state: FSMContext, bot: Bot, pending_order_id: str
@@ -192,7 +179,7 @@ async def message_order_process(
     if message.text.strip().lower() == "/cancel":
         await clear_pending(message.from_user.id)
         await state.clear()
-        await message.answer("Отменено. Можете нажать «Сообщение» или «Связаться с покупателем» у заказа снова.")
+        await message.answer("Отменено. Можете снова нажать «Сообщение» у заказа или «Связаться с покупателем» в меню.")
         return
     try:
         async with get_session() as session:
@@ -238,7 +225,7 @@ async def message_order_process(
         )
     except Exception:
         await clear_pending(message.from_user.id)
-        await message.answer("❌ Не удалось отправить сообщение. Попробуйте снова или нажмите «Связаться с покупателем» у заказа.")
+        await message.answer("❌ Не удалось отправить сообщение. Попробуйте снова или используйте «Связаться с покупателем» в меню.")
 
 
 @order_router.callback_query(F.data.startswith("status:"))
@@ -259,7 +246,7 @@ async def show_order_status(callback: CallbackQuery):
         
         text = f"📦 Заказ #{order.id}\n\n"
         text += f"📝 {order.text}\n\n"
-        text += f"📊 Статус: {order.status}\n"
+        text += f"📊 Статус: {order_status_ru(order.status)}\n"
         text += f"👤 Поставщик: {supplier_name}\n"
         text += f"📅 Создан: {order.created_at.strftime('%Y-%m-%d %H:%M')}\n"
         

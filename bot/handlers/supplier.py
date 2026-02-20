@@ -1,13 +1,15 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session
 from ..services import OrderService, SupplierService
-from ..keyboards import order_keyboard, supplier_reply_keyboard, BTN_MY_ORDERS, BTN_SUPPLIER_HELP, BTN_SUPPLIER_MENU
+from ..keyboards import order_keyboard, supplier_reply_keyboard, BTN_MY_ORDERS, BTN_SUPPLIER_HELP, BTN_CONTACT_BUYER, BTN_SUPPLIER_MENU
+from ..utils import order_status_ru
+from ..pending_store import set_pending
 from ..config import settings
 
 
@@ -86,7 +88,7 @@ async def my_orders(message: Message):
                 "DECLINED": "❌",
                 "CANCELLED": "❌"
             }.get(order.status, "📋")
-            text += f"{status_emoji} #{order.id} - {order.status}\n"
+            text += f"{status_emoji} #{order.id} - {order_status_ru(order.status)}\n"
             text += f"📝 {order.text[:50]}...\n"
             text += f"📅 {order.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
         await message.answer(text, reply_markup=supplier_reply_keyboard())
@@ -186,6 +188,45 @@ async def btn_my_orders(message: Message):
 async def btn_supplier_help(message: Message):
     """Handle 'Справка' button."""
     await supplier_help(message)
+
+
+@supplier_router.message(F.text == BTN_CONTACT_BUYER)
+async def contact_buyer_ask_order(message: Message, state: FSMContext):
+    """Кнопка «Связаться с покупателем» — запрос ID заказа."""
+    await state.set_state("contact_buyer_wait_order")
+    await message.answer("Введите ID заказа (например DE5A2138) или /cancel для отмены:")
+
+
+@supplier_router.message(StateFilter("contact_buyer_wait_order"), F.text)
+async def contact_buyer_got_order(message: Message, state: FSMContext):
+    """Обработка введённого ID заказа для связи с покупателем."""
+    if not message.text or not message.text.strip():
+        await message.answer("Введите ID заказа или /cancel.")
+        return
+    if message.text.strip().lower() == "/cancel":
+        await state.clear()
+        await message.answer("Отменено.", reply_markup=supplier_reply_keyboard())
+        return
+    order_id = message.text.strip().upper()
+    async with get_session() as session:
+        supplier_service = SupplierService(session)
+        order_service = OrderService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
+        if not supplier:
+            await state.clear()
+            await message.answer("❌ Вы не зарегистрированы как поставщик.", reply_markup=supplier_reply_keyboard())
+            return
+        order = await order_service.get_order(order_id)
+        if not order:
+            await message.answer("Заказ с таким ID не найден. Введите ID заказа или /cancel.")
+            return
+        if order.supplier_id != supplier.id:
+            await state.clear()
+            await message.answer("Этот заказ не назначен вам.", reply_markup=supplier_reply_keyboard())
+            return
+    await state.clear()
+    await set_pending(message.from_user.id, order.id)
+    await message.answer("📞 Введите сообщение для покупателя (или /cancel для отмены):")
 
 
 @supplier_router.message(F.text == BTN_SUPPLIER_MENU)
