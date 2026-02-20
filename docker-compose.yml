@@ -1,8 +1,11 @@
+# Пароль БД задаётся ОДИН РАЗ в .env (POSTGRES_PASSWORD). Не менять после первого запуска.
+# Все сервисы читают один и тот же .env через env_file.
 services:
   db:
     image: postgres:15-alpine
     container_name: supply_db
     restart: unless-stopped
+    env_file: .env
     environment:
       POSTGRES_DB: supply
       POSTGRES_USER: postgres
@@ -44,6 +47,7 @@ services:
       dockerfile: Dockerfile.bot
     container_name: supply_bot
     restart: unless-stopped
+    env_file: .env
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - POSTGRES_DB=supply
@@ -71,6 +75,7 @@ services:
       dockerfile: Dockerfile.api
     container_name: supply_api
     restart: unless-stopped
+    env_file: .env
     environment:
       - POSTGRES_DB=supply
       - POSTGRES_USER=postgres

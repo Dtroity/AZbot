@@ -84,35 +84,76 @@ nano .env
 
 Бот или API не могут подключиться к PostgreSQL: пароль в окружении не совпадает с паролем уже созданной БД. При такой ошибке бот отправляет пользователю сообщение: «Ошибка подключения к базе данных. Проверьте POSTGRES_PASSWORD в .env и перезапустите бота.»
 
-**Что сделать:**
+#### Окончательное решение (раз и навсегда)
 
-1. Проверьте `.env` в каталоге с `docker-compose.yml`:
-   ```bash
-   grep POSTGRES_PASSWORD .env
-   ```
-2. Если тома БД вы **никогда не пересоздавали**, то при первом запуске контейнер `db` был создан с паролем из compose (раньше было жёстко `postgres`). В `.env` должно быть:
-   ```env
-   POSTGRES_PASSWORD=postgres
-   ```
-3. Если вы **меняли** пароль или пересоздавали том с другим паролем — в `.env` укажите **именно тот** пароль, с которым сейчас инициализирована БД в томе.
-4. Перезапустите сервисы, чтобы они подхватили `.env`:
-   ```bash
-   docker compose down
-   docker compose up -d
-   ```
-5. Если не помните пароль или хотите задать новый — пересоздайте том (все данные БД будут удалены):
-   ```bash
-   docker compose down
-   docker volume rm azbot_postgres_data 2>/dev/null || true
-   echo "POSTGRES_PASSWORD=postgres" >> .env   # или свой пароль
-   docker compose up -d
-   sleep 10
-   docker compose exec api python -c "from api.database import init_db; import asyncio; asyncio.run(init_db()); print('OK')"
-   docker compose restart api
-   sleep 5
-   curl -s http://localhost:8000/ready
-   # Должно быть: {"status":"ready","database":"ok"}
-   ```
+Чтобы больше не возвращаться к проблеме: **один пароль в `.env`**, том БД пересоздаётся, все сервисы получают переменные из одного файла через `env_file: .env` в docker-compose.
+
+**Способ 1 — скрипт (рекомендуется):**
+
+На VPS в каталоге проекта выполните:
+
+```bash
+cd ~/AZbot
+# или: cd /opt/AZbot  / root/AZbot  — ваш путь к репозиторию
+
+bash scripts/vps-full-reset.sh
+```
+
+Скрипт: проверяет/создаёт `.env`, фиксирует `POSTGRES_PASSWORD`, останавливает контейнеры, удаляет том PostgreSQL, поднимает сервисы, инициализирует таблицы, проверяет API и перезапускает bot/api.
+
+**Способ 2 — команды вручную:**
+
+```bash
+cd ~/AZbot
+
+# .env обязателен (в compose для db/bot/api указано env_file: .env)
+[ -f .env ] || cp .env.example .env
+sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=postgres/' .env
+grep -q '^POSTGRES_PASSWORD=' .env || echo 'POSTGRES_PASSWORD=postgres' >> .env
+
+docker compose down
+VOL=$(docker volume ls -q | grep postgres_data | head -1)
+[ -n "$VOL" ] && docker volume rm "$VOL"
+
+docker compose up -d
+sleep 20
+docker compose exec -T api python -c "from api.database import init_db; import asyncio; asyncio.run(init_db()); print('OK')"
+curl -s http://localhost:8000/ready
+docker compose restart bot api
+```
+
+**Важно:** после этого **не меняйте** `POSTGRES_PASSWORD` в `.env`. В docker-compose для db, bot и api указано `env_file: .env` — один и тот же пароль попадает во все контейнеры.
+
+---
+
+**Если не хотите терять данные БД:**
+
+Тогда нужно использовать **тот же пароль**, с которым том был создан впервые. Обычно это `postgres`, если вы никогда не правили `.env` до первого запуска. Проверьте:
+
+```bash
+grep POSTGRES_PASSWORD .env
+docker compose down
+docker compose up -d
+sleep 10
+curl -s http://localhost:8000/ready
+```
+
+Если `/ready` возвращает ошибку — пароль не совпадает; единственный надёжный вариант без потери данных — вспомнить старый пароль или сделать дамп и затем выполнить «окончательное решение» выше.
+
+**Диагностика на VPS (убедиться, что один и тот же пароль везде):**
+
+```bash
+cd ~/AZbot
+echo "В .env: $(grep '^POSTGRES_PASSWORD=' .env)"
+echo "В контейнере db (переменная есть?): $(docker compose exec -T db env | grep POSTGRES_PASSWORD | sed 's/=.*/=***/')"
+echo "В контейнере bot: $(docker compose exec -T bot env | grep POSTGRES_PASSWORD | sed 's/=.*/=***/')"
+docker compose exec -T db psql -U postgres -d supply -c 'SELECT 1' 2>&1 && echo "Подключение к БД из контейнера db: OK"
+curl -s http://localhost:8000/ready
+```
+
+Если бот по-прежнему выдаёт InvalidPasswordError после полного сброса — убедитесь, что запускаете `docker compose` из каталога, где лежит тот же `.env` (не из другой папки и не по другому пути).
+
+---
 
 **Дашборд показывает «Ошибка загрузки данных»:** чаще всего это 503/500 из-за отсутствия доступа API к БД. Проверьте:
 

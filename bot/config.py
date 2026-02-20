@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
+        "extra": "ignore",
     }
+    # В Docker переменные задаются через docker-compose (env_file: .env), не из файла внутри контейнера.
+    # Приоритет: переменные окружения > .env > значения по умолчанию выше.
 
 
 settings = Settings()
