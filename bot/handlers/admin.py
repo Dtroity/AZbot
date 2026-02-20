@@ -8,8 +8,9 @@ from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncpg
 
+import re
 from ..database import get_session
-from ..services import OrderService, SupplierService, FilterService
+from ..services import OrderService, SupplierService, FilterService, MessageService
 from ..keyboards import (
     admin_keyboard,
     admin_reply_keyboard,
@@ -403,6 +404,58 @@ async def btn_add_supplier(message: Message, state: FSMContext):
         return
     await message.answer("📝 Введите имя поставщика:")
     await state.set_state(ManageSupplierState.waiting_for_name)
+
+
+def _is_reply_to_order_notification(message: Message) -> bool:
+    """Сообщение админа является ответом на уведомление «Новое сообщение по заказу»."""
+    if not message.reply_to_message or not message.reply_to_message.text:
+        return False
+    if "Новое сообщение по заказу" not in message.reply_to_message.text:
+        return False
+    if not message.text or not message.text.strip():
+        return False
+    return True
+
+
+@admin_router.message(
+    lambda m: m.from_user and _is_admin(m.from_user.id) and _is_reply_to_order_notification(m),
+)
+async def admin_reply_to_supplier_message(message: Message, bot: Bot):
+    """Ответ админа на сообщение поставщика по заказу (ответ на уведомление бота)."""
+    replied = message.reply_to_message.text
+    order_match = re.search(r"#([A-Za-z0-9]+)", replied)
+    if not order_match:
+        return
+    order_id = order_match.group(1)
+    try:
+        async with get_session() as session:
+            order_service = OrderService(session)
+            message_service = MessageService(session)
+            supplier_service = SupplierService(session)
+            order = await order_service.get_order(order_id)
+            if not order or order.admin_id != message.from_user.id:
+                await message.answer("❌ Заказ не найден или нет доступа.")
+                return
+            await message_service.send_message(order_id, message.from_user.id, message.text.strip())
+            supplier_telegram_id = None
+            if order.supplier_id:
+                supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
+                supplier_telegram_id = supplier.telegram_id if supplier else None
+            if supplier_telegram_id:
+                from aiogram.exceptions import TelegramBadRequest
+                try:
+                    await bot.send_message(
+                        supplier_telegram_id,
+                        f"💬 Ответ по заказу #{order_id}\n\n"
+                        f"От: Администратор\n"
+                        f"Сообщение: {message.text.strip()}",
+                    )
+                except TelegramBadRequest as e:
+                    if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
+                        raise
+            await message.reply("✅ Ответ отправлен поставщику.")
+    except Exception as e:
+        await message.reply("❌ Не удалось отправить ответ. Попробуйте позже.")
 
 
 @admin_router.message(

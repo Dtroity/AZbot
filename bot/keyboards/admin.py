@@ -14,21 +14,20 @@ BTN_SEARCH = "🔍 Поиск заказов"
 BTN_ADD_SUPPLIER = "➕ Добавить поставщика"
 BTN_MENU = "◀️ Главное меню"
 
-# Кнопки панели поставщика
+# Кнопки панели поставщика (кнопка «Меню» заменена на «Связаться с покупателем»)
 BTN_MY_ORDERS = "📦 Мои заказы"
 BTN_SUPPLIER_HELP = "📖 Справка"
 BTN_CONTACT_BUYER = "📞 Связаться с покупателем"
-BTN_SUPPLIER_MENU = "◀️ Меню"
+BTN_SUPPLIER_MENU = "◀️ Меню"  # оставлена для совместимости со старыми клавиатурами
 
 
 def supplier_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Закреплённая панель для поставщика (ReplyKeyboard)."""
+    """Закреплённая панель для поставщика: Мои заказы, Связаться с покупателем, Справка (вместо Меню)."""
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text=BTN_MY_ORDERS))
     builder.add(KeyboardButton(text=BTN_CONTACT_BUYER))
     builder.add(KeyboardButton(text=BTN_SUPPLIER_HELP))
-    builder.add(KeyboardButton(text=BTN_SUPPLIER_MENU))
-    builder.adjust(2, 2)
+    builder.adjust(2, 1)
     return builder.as_markup(resize_keyboard=True, is_persistent=True)
 
 

@@ -198,7 +198,9 @@ async def message_order_process(
                         order.admin_id,
                         f"💬 Новое сообщение по заказу #{order_id}\n\n"
                         f"От: {message.from_user.first_name}\n"
-                        f"Сообщение: {message.text}"
+                        f"Сообщение: {message.text}\n\n"
+                        f"<i>Ответьте на это сообщение, чтобы ответить поставщику.</i>",
+                        parse_mode="HTML",
                     )
                 except TelegramBadRequest as e:
                     if "chat not found" not in str(e).lower() and "user not found" not in str(e).lower():
