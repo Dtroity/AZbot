@@ -13,7 +13,7 @@ class Settings(BaseSettings):
             return []
         return [int(x.strip()) for x in self.admins.split(",") if x.strip().isdigit()]
 
-    # Database
+    # Database (пустой пароль в database_url подменяется на "postgres" — см. свойство database_url)
     postgres_db: str = "supply"
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
@@ -27,7 +27,8 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        pwd = (self.postgres_password or "").strip() or "postgres"
+        return f"postgresql+asyncpg://{self.postgres_user}:{pwd}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     @property
     def redis_url(self) -> str:

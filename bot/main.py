@@ -11,7 +11,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from .config import settings
-from .database import init_db
+from .database import init_db, engine
 from .pending_store import set_redis as set_pending_store_redis
 from .handlers import admin_router, order_router, supplier_router, message_router
 
@@ -21,13 +21,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan():
-    """Initialize database and other resources"""
-    logger.info("Initializing database...")
-    await init_db()
-    logger.info("Database initialized successfully!")
-    yield
+async def _check_db_connection():
+    """Проверка подключения к БД при старте (логируем хост, без пароля)."""
+    try:
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("DB connection OK (host=%s, db=%s)", settings.postgres_host, settings.postgres_db)
+        return True
+    except Exception as e:
+        logger.error("DB connection failed at startup: %s — check POSTGRES_HOST, POSTGRES_PASSWORD, .env", e)
+        return False
 
 
 async def main():
@@ -56,6 +60,12 @@ async def main():
         storage = MemoryStorage()
         set_pending_store_redis(None)
     
+    # Проверка БД до старта (чтобы сразу увидеть ошибку пароля/доступа в логах)
+    if not await _check_db_connection():
+        logger.warning("Бот запускается без БД — проверьте .env и контейнер db. Команды: из каталога проекта docker compose logs db")
+    else:
+        await init_db()
+
     # Initialize dispatcher
     dp = Dispatcher(storage=storage)
     

@@ -153,6 +153,49 @@ curl -s http://localhost:8000/ready
 
 Если бот по-прежнему выдаёт InvalidPasswordError после полного сброса — убедитесь, что запускаете `docker compose` из каталога, где лежит тот же `.env` (не из другой папки и не по другому пути).
 
+#### Доступ к БД пропал через час (бот и дашборд не подключаются)
+
+**Причина:** после перезапуска контейнеров (или пересоздания) переменная `POSTGRES_PASSWORD` могла попасть в контейнеры пустой или из другого каталога, если команды запускались не из каталога проекта. В коде добавлена нормализация: пустой пароль в приложении подменяется на `postgres`, плюс ограничение пула соединений и переподключение.
+
+**Что сделать на сервере (все команды — из каталога проекта):**
+
+```bash
+# 1. Перейти в каталог проекта (обязательно — иначе .env не подхватится)
+cd ~/AZbot
+# или: cd /opt/AZbot
+
+# 2. Зафиксировать пароль в .env (одна строка, без пробелов)
+grep -q '^POSTGRES_PASSWORD=' .env || echo 'POSTGRES_PASSWORD=postgres' >> .env
+sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=postgres/' .env
+
+# 3. Пересобрать и перезапустить только bot и api (БД не трогаем)
+docker compose build bot api --no-cache
+docker compose up -d db
+sleep 10
+docker compose up -d bot api
+
+# 4. Проверка
+sleep 5
+curl -s http://localhost:8000/ready
+docker compose logs bot --tail 15
+```
+
+Если доступ не восстановился — выполнить полный сброс БД (скрипт ниже); данные в БД будут удалены.
+
+```bash
+cd ~/AZbot
+bash scripts/vps-full-reset.sh
+```
+
+**Чтобы проблема не повторялась:** все команды `docker compose` (в т.ч. из cron или systemd) всегда запускайте из каталога проекта. Пример systemd unit:
+
+```ini
+[Service]
+WorkingDirectory=/opt/AZbot
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+```
+
 ---
 
 **Дашборд показывает «Ошибка загрузки данных»:** чаще всего это 503/500 из-за отсутствия доступа API к БД. Проверьте:

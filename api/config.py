@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     
     @property
     def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        pwd = (self.postgres_password or "").strip() or "postgres"
+        return f"postgresql+asyncpg://{self.postgres_user}:{pwd}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
     
     @property
     def redis_url(self) -> str:
