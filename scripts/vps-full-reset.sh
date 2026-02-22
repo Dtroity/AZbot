@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Полная переустановка БД на VPS: один пароль в .env, том пересоздаётся.
+# Полная переустановка БД на VPS. Пароль БД зафиксирован в docker-compose (postgres), том пересоздаётся.
 # Запуск из корня проекта: bash scripts/vps-full-reset.sh
 # Требует: docker compose, curl
 
@@ -9,7 +9,7 @@ PROJECT_DIR="$(pwd)"
 
 echo "=== Каталог проекта: $PROJECT_DIR ==="
 
-# 1. Файл .env обязателен (docker-compose с env_file: .env)
+# 1. Файл .env обязателен для bot/api (BOT_TOKEN, ADMINS, SECRET_KEY)
 if [ ! -f .env ]; then
   echo "Создаю .env из .env.example..."
   cp .env.example .env
@@ -17,15 +17,7 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# 2. Зафиксировать пароль БД (одно место навсегда)
-if ! grep -q '^POSTGRES_PASSWORD=' .env; then
-  echo "POSTGRES_PASSWORD=postgres" >> .env
-  echo "Добавлен POSTGRES_PASSWORD=postgres в .env"
-fi
-# Убедиться, что значение не пустое
-sed -i 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=postgres/' .env 2>/dev/null || true
-
-echo "Текущий POSTGRES_PASSWORD в .env: $(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
+echo "Пароль БД задаётся в docker-compose (postgres), не в .env."
 
 # 3. Остановить контейнеры
 echo "=== Останавливаю контейнеры ==="
@@ -40,7 +32,7 @@ else
   echo "Том postgres_data не найден (уже удалён или первый запуск)."
 fi
 
-# 5. Запуск сервисов (БД инициализируется с паролем из .env)
+# 5. Запуск сервисов (БД инициализируется с паролем postgres из docker-compose)
 echo "=== Запускаю сервисы ==="
 docker compose up -d
 
