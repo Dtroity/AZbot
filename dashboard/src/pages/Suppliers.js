@@ -63,22 +63,30 @@ function Suppliers() {
       field: 'id',
       headerName: 'ID',
       width: 80,
+      minWidth: 60,
+      resizable: true,
     },
     {
       field: 'name',
       headerName: 'Имя',
       width: 200,
+      minWidth: 120,
       flex: 1,
+      resizable: true,
     },
     {
       field: 'telegram_id',
       headerName: 'Telegram ID',
       width: 120,
+      minWidth: 90,
+      resizable: true,
     },
     {
       field: 'role',
       headerName: 'Роль',
       width: 120,
+      minWidth: 90,
+      resizable: true,
       renderCell: (params) => (
         <Chip
           label={roleLabels[params.value] || params.value}
@@ -91,6 +99,8 @@ function Suppliers() {
       field: 'active',
       headerName: 'Активен',
       width: 80,
+      minWidth: 70,
+      resizable: true,
       renderCell: (params) => (
         <Chip
           label={params.value ? 'Да' : 'Нет'}
@@ -103,12 +113,16 @@ function Suppliers() {
       field: 'created_at',
       headerName: 'Создан',
       width: 150,
+      minWidth: 100,
+      resizable: true,
       renderCell: (params) => new Date(params.value).toLocaleDateString('ru-RU'),
     },
     {
       field: 'actions',
       headerName: 'Действия',
       width: 180,
+      minWidth: 140,
+      resizable: true,
       renderCell: (params) => (
         <Box>
           <IconButton
@@ -242,7 +256,7 @@ function Suppliers() {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Поставщики</Typography>
         <Button
@@ -260,7 +274,7 @@ function Suppliers() {
         </Alert>
       )}
 
-      <Paper sx={{ height: 600, width: '100%' }}>
+      <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
           rows={suppliers}
           columns={columns}
@@ -271,6 +285,8 @@ function Suppliers() {
           pageSizeOptions={[25, 50, 100]}
           rowCount={suppliers.length}
           disableRowSelectionOnClick
+          disableColumnResize={false}
+          sx={{ border: 0 }}
         />
       </Paper>
 

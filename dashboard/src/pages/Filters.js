@@ -55,17 +55,23 @@ function Filters() {
       field: 'id',
       headerName: 'ID',
       width: 80,
+      minWidth: 60,
+      resizable: true,
     },
     {
       field: 'keyword',
       headerName: 'Ключевое слово',
       width: 200,
+      minWidth: 120,
       flex: 1,
+      resizable: true,
     },
     {
       field: 'supplier_id',
       headerName: 'Поставщик',
       width: 150,
+      minWidth: 100,
+      resizable: true,
       renderCell: (params) => {
         const supplier = suppliers.find(s => s.id === params.value);
         return supplier ? supplier.name : `ID: ${params.value}`;
@@ -75,6 +81,8 @@ function Filters() {
       field: 'priority',
       headerName: 'Приоритет',
       width: 100,
+      minWidth: 80,
+      resizable: true,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -87,6 +95,8 @@ function Filters() {
       field: 'active',
       headerName: 'Активен',
       width: 80,
+      minWidth: 70,
+      resizable: true,
       renderCell: (params) => (
         <Chip
           label={params.value ? 'Да' : 'Нет'}
@@ -99,12 +109,16 @@ function Filters() {
       field: 'created_at',
       headerName: 'Создан',
       width: 150,
+      minWidth: 100,
+      resizable: true,
       renderCell: (params) => new Date(params.value).toLocaleDateString('ru-RU'),
     },
     {
       field: 'actions',
       headerName: 'Действия',
       width: 150,
+      minWidth: 120,
+      resizable: true,
       renderCell: (params) => (
         <Box>
           <IconButton
@@ -230,7 +244,7 @@ function Filters() {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Фильтры</Typography>
         <Box>
@@ -258,7 +272,7 @@ function Filters() {
         </Alert>
       )}
 
-      <Paper sx={{ height: 600, width: '100%' }}>
+      <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
           rows={filters}
           columns={columns}
@@ -269,6 +283,8 @@ function Filters() {
           pageSizeOptions={[25, 50, 100]}
           rowCount={filters.length}
           disableRowSelectionOnClick
+          disableColumnResize={false}
+          sx={{ border: 0 }}
         />
       </Paper>
 

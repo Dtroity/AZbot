@@ -60,17 +60,23 @@ function Orders() {
       field: 'id',
       headerName: 'ID',
       width: 100,
+      minWidth: 70,
+      resizable: true,
     },
     {
       field: 'text',
       headerName: 'Описание',
       width: 300,
+      minWidth: 150,
       flex: 1,
+      resizable: true,
     },
     {
       field: 'status',
       headerName: 'Статус',
       width: 120,
+      minWidth: 90,
+      resizable: true,
       renderCell: (params) => (
         <Chip
           label={statusLabels[params.value] || params.value}
@@ -83,18 +89,24 @@ function Orders() {
       field: 'supplier',
       headerName: 'Поставщик',
       width: 150,
+      minWidth: 100,
+      resizable: true,
       renderCell: (params) => params.value?.name || 'Не назначен',
     },
     {
       field: 'created_at',
       headerName: 'Создан',
       width: 150,
+      minWidth: 120,
+      resizable: true,
       renderCell: (params) => new Date(params.value).toLocaleString('ru-RU'),
     },
     {
       field: 'actions',
       headerName: 'Действия',
       width: 150,
+      minWidth: 120,
+      resizable: true,
       renderCell: (params) => (
         <Box>
           <IconButton
@@ -200,7 +212,7 @@ function Orders() {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Заказы</Typography>
         <Button
@@ -218,7 +230,7 @@ function Orders() {
         </Alert>
       )}
 
-      <Paper sx={{ height: 600, width: '100%' }}>
+      <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
           rows={orders}
           columns={columns}
@@ -229,6 +241,8 @@ function Orders() {
           pageSizeOptions={[25, 50, 100]}
           rowCount={orders.length}
           disableRowSelectionOnClick
+          disableColumnResize={false}
+          sx={{ border: 0 }}
         />
       </Paper>
 
