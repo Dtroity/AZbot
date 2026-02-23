@@ -104,7 +104,7 @@ async def create_order_process(message: Message, state: FSMContext, bot: Bot):
                     try:
                         await bot.send_message(
                             supplier.telegram_id,
-                            f"🆕 Новый заказ #{order.id}\n\n{order.text}",
+                            f"🆕 Новый заказ ООО «Танагра» #{order.id}\n\n{order.text}",
                             reply_markup=order_keyboard(order.id),
                         )
                     except TelegramBadRequest as e:
