@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { suppliersAPI } from '../services/api';
+import { useDataGridState } from '../hooks/useDataGridState';
 
 const roleColors = {
   'admin': '#f44336',
@@ -57,6 +58,7 @@ function Suppliers() {
     active: true
   });
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
+  const { apiRef, initialState } = useDataGridState('suppliers');
 
   const columns = [
     {
@@ -276,6 +278,8 @@ function Suppliers() {
 
       <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
+          apiRef={apiRef}
+          initialState={initialState}
           rows={suppliers}
           columns={columns}
           pagination

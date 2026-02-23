@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { filtersAPI, suppliersAPI } from '../services/api';
+import { useDataGridState } from '../hooks/useDataGridState';
 
 function Filters() {
   const [filters, setFilters] = useState([]);
@@ -49,6 +50,7 @@ function Filters() {
   const [bulkKeywords, setBulkKeywords] = useState('');
   const [bulkSupplierId, setBulkSupplierId] = useState('');
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
+  const { apiRef, initialState } = useDataGridState('filters');
 
   const columns = [
     {
@@ -274,6 +276,8 @@ function Filters() {
 
       <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
+          apiRef={apiRef}
+          initialState={initialState}
           rows={filters}
           columns={columns}
           pagination
