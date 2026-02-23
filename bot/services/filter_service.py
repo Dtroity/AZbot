@@ -49,8 +49,10 @@ class FilterService:
         )
         return result.scalar_one_or_none()
 
-    async def update_filter(self, filter_id: int, keyword: str = None, priority: int = None) -> bool:
-        """Update filter"""
+    async def update_filter(
+        self, filter_id: int, keyword: str = None, priority: int = None, active: bool = None
+    ) -> bool:
+        """Update filter (keyword, priority, active)."""
         filter_obj = await self.get_filter_by_id(filter_id)
         if not filter_obj:
             return False
@@ -60,6 +62,8 @@ class FilterService:
             updates["keyword"] = keyword
         if priority is not None:
             updates["priority"] = priority
+        if active is not None:
+            updates["active"] = active
         
         if updates:
             result = await self.session.execute(

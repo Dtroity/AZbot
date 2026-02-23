@@ -95,8 +95,9 @@ async def update_filter(
     if update_data:
         success = await filter_service.update_filter(
             filter_id,
-            update_data.get("keyword"),
-            update_data.get("priority")
+            keyword=update_data.get("keyword"),
+            priority=update_data.get("priority"),
+            active=update_data.get("active"),
         )
         
         if not success:

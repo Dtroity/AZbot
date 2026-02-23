@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
+from collections import defaultdict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, or_
@@ -17,8 +18,10 @@ class OrderService:
         """Generate short order ID"""
         return str(uuid.uuid4())[:8].upper()
 
-    async def create_order(self, text: str, admin_id: int) -> Order:
-        """Create new order and try to assign to supplier"""
+    async def create_order(
+        self, text: str, admin_id: int, assign_supplier_id: Optional[int] = None
+    ) -> Order:
+        """Create new order. If assign_supplier_id is set, assign to that supplier; else find by filters."""
         order_id = self.generate_id()
         
         order = Order()
@@ -30,18 +33,65 @@ class OrderService:
         self.session.add(order)
         await self.session.flush()
         
-        # Try to find suitable supplier
-        supplier = await self._find_suitable_supplier(text)
-        if supplier:
-            order.supplier_id = supplier.id
+        if assign_supplier_id is not None:
+            order.supplier_id = assign_supplier_id
             order.assigned_at = datetime.utcnow()
             order.status = "ASSIGNED"
+        else:
+            supplier = await self._find_suitable_supplier(text)
+            if supplier:
+                order.supplier_id = supplier.id
+                order.assigned_at = datetime.utcnow()
+                order.status = "ASSIGNED"
         
-        # Log activity
         await self._log_activity(admin_id, "order_created", f"Order {order_id} created")
         
         await self.session.commit()
         return order
+
+    async def create_orders_from_bulk_message(self, message_text: str, admin_id: int) -> List[Order]:
+        """
+        Parse message as multiple lines; assign each line to a supplier by filters;
+        group lines by supplier and create one order per supplier with their lines.
+        """
+        lines = [
+            line.strip()
+            for line in (message_text or "").strip().splitlines()
+            if line.strip()
+        ]
+        if not lines:
+            return []
+
+        result = await self.session.execute(
+            select(Supplier)
+            .options(selectinload(Supplier.filters))
+            .where(
+                and_(
+                    Supplier.active == True,
+                    Supplier.role == "supplier"
+                )
+            )
+            .order_by(Supplier.created_at)
+        )
+        suppliers = result.scalars().all()
+        if not suppliers:
+            return []
+
+        # For each line, find the best matching supplier (by filters)
+        by_supplier: Dict[int, List[str]] = defaultdict(list)
+        for line in lines:
+            supplier = await self._find_suitable_supplier(line)
+            if supplier:
+                by_supplier[supplier.id].append(line)
+
+        created = []
+        for supplier_id, line_list in by_supplier.items():
+            order_text = "\n".join(line_list)
+            order = await self.create_order(
+                order_text, admin_id, assign_supplier_id=supplier_id
+            )
+            created.append(order)
+        return created
 
     async def _find_suitable_supplier(self, order_text: str) -> Optional[Supplier]:
         """Find best supplier based on filters"""

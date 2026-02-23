@@ -6,8 +6,9 @@ from sqlalchemy.orm import selectinload
 
 from ..dependencies import get_db, get_current_admin
 from ..models.schemas import SupplierCreate, SupplierUpdate, SupplierResponse, FilterResponse
-from db.models import Supplier
-from bot.services import SupplierService, FilterService
+from db.models import Supplier, Filter, Order
+from sqlalchemy import delete, update
+from bot.services import SupplierService, FilterService, OrderService
 
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
@@ -110,7 +111,6 @@ async def update_supplier(
                 await supplier_service.deactivate_supplier(supplier_id)
         
         if "role" in update_data:
-            from sqlalchemy import update
             result = await db.execute(
                 update(Supplier)
                 .where(Supplier.id == supplier_id)
@@ -130,7 +130,7 @@ async def delete_supplier(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_admin)
 ):
-    """Delete supplier"""
+    """Delete supplier. Removes related filters and unassigns orders first (Core delete does not cascade)."""
     supplier_service = SupplierService(db)
     
     # Check if supplier exists
@@ -138,12 +138,10 @@ async def delete_supplier(
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    # Delete supplier (cascade will delete filters)
-    from sqlalchemy import delete
-    
-    result = await db.execute(
-        delete(Supplier).where(Supplier.id == supplier_id)
-    )
+    # Core delete does not trigger ORM cascade: unassign orders, delete filters, then supplier
+    await db.execute(update(Order).where(Order.supplier_id == supplier_id).values(supplier_id=None))
+    await db.execute(delete(Filter).where(Filter.supplier_id == supplier_id))
+    result = await db.execute(delete(Supplier).where(Supplier.id == supplier_id))
     
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Supplier not found")

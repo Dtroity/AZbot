@@ -64,7 +64,8 @@ async def cmd_start(message: Message, bot: Bot):
 async def create_order_start(callback: CallbackQuery, state: FSMContext):
     """Start order creation process"""
     await callback.message.answer(
-        "📝 Введите текст заказа (можно несколько строк, каждая строка - отдельный заказ):"
+        "📝 Введите список позиций заказа (каждая позиция — с новой строки). "
+        "Система разнесёт позиции по поставщикам по фильтрам и отправит каждому поставщику один заказ с его позициями."
     )
     await state.set_state(CreateOrderState.waiting_for_text)
     await callback.answer()
@@ -72,7 +73,7 @@ async def create_order_start(callback: CallbackQuery, state: FSMContext):
 
 @admin_router.message(CreateOrderState.waiting_for_text)
 async def create_order_process(message: Message, state: FSMContext, bot: Bot):
-    """Process order creation"""
+    """Process order creation: one message = list of lines, grouped by supplier filters → one order per supplier."""
     if message.text == BTN_MENU:
         await state.clear()
         await message.answer(
@@ -82,19 +83,18 @@ async def create_order_process(message: Message, state: FSMContext, bot: Bot):
         return
     if message.text and message.text.strip() == BTN_ORDER:
         await message.answer(
-            "📝 Введите текст заказа (можно несколько строк, каждая строка — отдельный заказ):"
+            "📝 Введите список позиций (каждая с новой строки). Позиции будут разнесены по поставщикам по фильтрам."
         )
         return
     async with get_session() as session:
         order_service = OrderService(session)
-        lines = [line.strip() for line in (message.text or "").split("\n") if line.strip()]
-        created_orders = []
-        if not lines:
+        created_orders = await order_service.create_orders_from_bulk_message(
+            (message.text or "").strip(), message.from_user.id
+        )
+        if not created_orders:
             await message.answer("📝 Введите текст заказа (одна или несколько строк):")
             return
-        for line in lines:
-            order = await order_service.create_order(line, message.from_user.id)
-            created_orders.append(order)
+        for order in created_orders:
             if order.supplier_id:
                 supplier_service = SupplierService(session)
                 supplier = await supplier_service.get_supplier_by_id(order.supplier_id)
@@ -344,7 +344,8 @@ async def btn_create_order(message: Message, state: FSMContext):
     if not _is_admin(message.from_user.id):
         return
     await message.answer(
-        "📝 Введите текст заказа (можно несколько строк, каждая строка — отдельный заказ):"
+        "📝 Введите список позиций заказа (каждая с новой строки). "
+        "Позиции будут разнесены по поставщикам по фильтрам, каждому поставщику — один заказ."
     )
     await state.set_state(CreateOrderState.waiting_for_text)
 

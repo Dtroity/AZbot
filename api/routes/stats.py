@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -133,8 +133,10 @@ async def get_daily_order_stats(
         date_str = current_date.isoformat()
         count = 0
         
-        for date, cnt in daily_data:
-            if date.date() == current_date:
+        for row_date, cnt in daily_data:
+            # PostgreSQL func.date() can return date or datetime depending on driver
+            d = row_date if isinstance(row_date, date_type) else getattr(row_date, "date", lambda: row_date)()
+            if d == current_date:
                 count = cnt
                 break
         
