@@ -1,39 +1,54 @@
-import { useState, useLayoutEffect } from 'react';
-import { useGridApiRef } from '@mui/x-data-grid';
+import { useState, useCallback } from 'react';
 
-const STORAGE_PREFIX = 'dataGridState_';
+const STORAGE_PREFIX = 'dataGridColumnWidths_';
 
 /**
- * Hook for persisting Data Grid state (column widths, etc.) to localStorage.
- * @param {string} storageKey - Suffix for localStorage key (e.g. 'orders', 'suppliers', 'filters')
- * @returns {{ apiRef: React.MutableRefObject, initialState: object | undefined }}
+ * Persist column widths to localStorage and restore on load.
+ * Uses onColumnWidthChange to save; applies saved widths by merging into columns.
+ * @param {string} storageKey - e.g. 'orders', 'suppliers', 'filters'
+ * @returns {{ columnWidths: Record<string, number>, onColumnWidthChange: function, columnsWithWidths: (columns: Array) => Array }}
  */
 export function useDataGridState(storageKey) {
   const fullKey = `${STORAGE_PREFIX}${storageKey}`;
-  const [initialState, setInitialState] = useState(() => {
+  const [columnWidths, setColumnWidths] = useState(() => {
     try {
       const saved = localStorage.getItem(fullKey);
-      return saved ? JSON.parse(saved) : undefined;
+      if (!saved) return {};
+      const parsed = JSON.parse(saved);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
     } catch {
-      return undefined;
+      return {};
     }
   });
-  const apiRef = useGridApiRef();
 
-  useLayoutEffect(() => {
-    return () => {
-      try {
-        if (apiRef.current?.exportState) {
-          const state = apiRef.current.exportState();
-          if (state && typeof state === 'object') {
-            localStorage.setItem(fullKey, JSON.stringify(state));
-          }
+  const onColumnWidthChange = useCallback(
+    (params) => {
+      const field = params?.colDef?.field ?? params?.field;
+      const width = params?.width;
+      if (field == null || typeof width !== 'number') return;
+      setColumnWidths((prev) => {
+        const next = { ...prev, [field]: width };
+        try {
+          localStorage.setItem(fullKey, JSON.stringify(next));
+        } catch (e) {
+          // ignore
         }
-      } catch (e) {
-        // ignore
-      }
-    };
-  }, [fullKey, apiRef]);
+        return next;
+      });
+    },
+    [fullKey]
+  );
 
-  return { apiRef, initialState };
+  const columnsWithWidths = useCallback(
+    (columns) => {
+      if (!columns?.length) return columns;
+      return columns.map((col) => ({
+        ...col,
+        width: columnWidths[col.field] ?? col.width,
+      }));
+    },
+    [columnWidths]
+  );
+
+  return { columnWidths, onColumnWidthChange, columnsWithWidths };
 }

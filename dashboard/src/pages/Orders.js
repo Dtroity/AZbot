@@ -44,6 +44,15 @@ const statusLabels = {
   'CANCELLED': 'Отменен'
 };
 
+const dataGridSx = {
+  border: 0,
+  '& .MuiDataGrid-columnHeaders': { overflow: 'visible' },
+  '& .MuiDataGrid-columnHeader': { overflow: 'visible', position: 'relative' },
+  '& .MuiDataGrid-columnHeaderTitleContainer': { overflow: 'visible', position: 'relative', zIndex: 2 },
+  '& .MuiDataGrid-columnHeaderTitleContainerContent': { overflow: 'visible', minWidth: 0 },
+  '& .MuiDataGrid-columnSeparator': { zIndex: 1, pointerEvents: 'auto' },
+};
+
 function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +64,7 @@ function Orders() {
   const [newOrderText, setNewOrderText] = useState('');
   const [orderMessages, setOrderMessages] = useState([]);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
-  const { apiRef, initialState } = useDataGridState('orders');
+  const { onColumnWidthChange, columnsWithWidths } = useDataGridState('orders');
 
   const columns = [
     {
@@ -234,10 +243,9 @@ function Orders() {
 
       <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
-          apiRef={apiRef}
-          initialState={initialState}
           rows={orders}
-          columns={columns}
+          columns={columnsWithWidths(columns)}
+          onColumnWidthChange={onColumnWidthChange}
           pagination
           paginationModel={pagination}
           onPaginationModelChange={setPagination}
@@ -246,7 +254,7 @@ function Orders() {
           rowCount={orders.length}
           disableRowSelectionOnClick
           disableColumnResize={false}
-          sx={{ border: 0 }}
+          sx={dataGridSx}
         />
       </Paper>
 

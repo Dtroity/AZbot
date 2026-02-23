@@ -32,6 +32,15 @@ import { DataGrid } from '@mui/x-data-grid';
 import { filtersAPI, suppliersAPI } from '../services/api';
 import { useDataGridState } from '../hooks/useDataGridState';
 
+const dataGridSx = {
+  border: 0,
+  '& .MuiDataGrid-columnHeaders': { overflow: 'visible' },
+  '& .MuiDataGrid-columnHeader': { overflow: 'visible', position: 'relative' },
+  '& .MuiDataGrid-columnHeaderTitleContainer': { overflow: 'visible', position: 'relative', zIndex: 2 },
+  '& .MuiDataGrid-columnHeaderTitleContainerContent': { overflow: 'visible', minWidth: 0 },
+  '& .MuiDataGrid-columnSeparator': { zIndex: 1, pointerEvents: 'auto' },
+};
+
 function Filters() {
   const [filters, setFilters] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -50,7 +59,7 @@ function Filters() {
   const [bulkKeywords, setBulkKeywords] = useState('');
   const [bulkSupplierId, setBulkSupplierId] = useState('');
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
-  const { apiRef, initialState } = useDataGridState('filters');
+  const { onColumnWidthChange, columnsWithWidths } = useDataGridState('filters');
 
   const columns = [
     {
@@ -276,10 +285,9 @@ function Filters() {
 
       <Paper sx={{ height: 'calc(100vh - 220px)', minHeight: 400, width: '100%', maxWidth: '100%' }}>
         <DataGrid
-          apiRef={apiRef}
-          initialState={initialState}
           rows={filters}
-          columns={columns}
+          columns={columnsWithWidths(columns)}
+          onColumnWidthChange={onColumnWidthChange}
           pagination
           paginationModel={pagination}
           onPaginationModelChange={setPagination}
@@ -288,7 +296,7 @@ function Filters() {
           rowCount={filters.length}
           disableRowSelectionOnClick
           disableColumnResize={false}
-          sx={{ border: 0 }}
+          sx={dataGridSx}
         />
       </Paper>
 
