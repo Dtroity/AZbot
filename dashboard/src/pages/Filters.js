@@ -173,7 +173,7 @@ function Filters() {
           skip: pagination.page * pagination.pageSize,
           limit: pagination.pageSize,
         }),
-        suppliersAPI.getSuppliers({ active_only: false, limit: 1000 })
+        suppliersAPI.getSuppliers({ active_only: false, limit: 100 })
       ]);
       
       const filtersData = filtersResponse.data?.items != null ? filtersResponse.data : { items: filtersResponse.data, total: filtersResponse.data?.length ?? 0 };
