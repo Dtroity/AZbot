@@ -3,6 +3,7 @@ node_modules/
 
 # Build / runtime
 dashboard/build/
+nginx/htpasswd
 .env
 *.pyc
 __pycache__/
