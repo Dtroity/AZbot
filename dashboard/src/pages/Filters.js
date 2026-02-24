@@ -59,6 +59,7 @@ function Filters() {
   const [bulkKeywords, setBulkKeywords] = useState('');
   const [bulkSupplierId, setBulkSupplierId] = useState('');
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
+  const [rowCount, setRowCount] = useState(0);
   const { onColumnWidthChange, columnsWithWidths } = useDataGridState('filters');
 
   const columns = [
@@ -172,11 +173,15 @@ function Filters() {
           skip: pagination.page * pagination.pageSize,
           limit: pagination.pageSize,
         }),
-        suppliersAPI.getSuppliers({ active_only: false })
+        suppliersAPI.getSuppliers({ active_only: false, limit: 1000 })
       ]);
       
-      setFilters(filtersResponse.data);
-      setSuppliers(suppliersResponse.data);
+      const filtersData = filtersResponse.data?.items != null ? filtersResponse.data : { items: filtersResponse.data, total: filtersResponse.data?.length ?? 0 };
+      setFilters(Array.isArray(filtersData.items) ? filtersData.items : []);
+      setRowCount(typeof filtersData.total === 'number' ? filtersData.total : filtersData.items?.length ?? 0);
+
+      const suppliersData = suppliersResponse.data?.items != null ? suppliersResponse.data : { items: suppliersResponse.data };
+      setSuppliers(Array.isArray(suppliersData.items) ? suppliersData.items : (Array.isArray(suppliersResponse.data) ? suppliersResponse.data : []));
     } catch (err) {
       setError('Ошибка загрузки данных');
       console.error('Data fetch error:', err);
@@ -289,11 +294,12 @@ function Filters() {
           columns={columnsWithWidths(columns)}
           onColumnWidthChange={onColumnWidthChange}
           pagination
+          paginationMode="server"
           paginationModel={pagination}
           onPaginationModelChange={setPagination}
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
-          rowCount={filters.length}
+          rowCount={rowCount}
           disableRowSelectionOnClick
           disableColumnResize={false}
           sx={dataGridSx}

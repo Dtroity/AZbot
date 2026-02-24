@@ -3,14 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import get_db, get_current_admin
-from ..models.schemas import FilterCreate, FilterUpdate, FilterResponse, FilterBulkCreate
+from ..models.schemas import FilterCreate, FilterUpdate, FilterResponse, FilterListPaginatedResponse, FilterBulkCreate
 from bot.services import FilterService, SupplierService
 
 
 router = APIRouter(prefix="/filters", tags=["filters"])
 
 
-@router.get("/", response_model=List[FilterResponse])
+@router.get("/", response_model=FilterListPaginatedResponse)
 async def get_filters(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -19,20 +19,17 @@ async def get_filters(
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get filters with filtering and pagination"""
+    """Get filters with filtering and pagination. Returns items and total count."""
     filter_service = FilterService(db)
-    
     if supplier_id:
         filters = await filter_service.get_filters_by_supplier(supplier_id, active_only=active_only)
     elif search:
         filters = await filter_service.search_filters(search)
     else:
         filters = await filter_service.get_all_filters(active_only=active_only)
-    
-    # Apply pagination
-    filters = filters[skip:skip+limit]
-    
-    return filters
+    total = len(filters)
+    page = filters[skip : skip + limit]
+    return {"items": page, "total": total}
 
 
 @router.get("/{filter_id}", response_model=FilterResponse)

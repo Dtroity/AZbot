@@ -4,8 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import func
+
 from ..dependencies import get_db, get_current_admin
-from ..models.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderListResponse, OrderMessageResponse
+from ..models.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderListResponse, OrderListPaginatedResponse, OrderMessageResponse
 from db.models import Order
 from bot.services import OrderService, MessageService
 
@@ -13,7 +15,7 @@ from bot.services import OrderService, MessageService
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-@router.get("/", response_model=List[OrderListResponse])
+@router.get("/", response_model=OrderListPaginatedResponse)
 async def get_orders(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -23,29 +25,32 @@ async def get_orders(
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get orders with filtering and pagination"""
-    order_service = OrderService(db)
-    
-    # Build query
-    query = select(Order).options(selectinload(Order.supplier))
-    
-    # Apply filters
+    """Get orders with filtering and pagination. Returns items and total count."""
+    # Base conditions
+    conditions = []
     if status:
-        query = query.where(Order.status == status)
+        conditions.append(Order.status == status)
     if supplier_id:
-        query = query.where(Order.supplier_id == supplier_id)
+        conditions.append(Order.supplier_id == supplier_id)
     if admin_id:
-        query = query.where(Order.admin_id == admin_id)
+        conditions.append(Order.admin_id == admin_id)
     if search:
-        query = query.where(Order.text.ilike(f"%{search}%"))
-    
-    # Apply pagination and ordering
+        conditions.append(Order.text.ilike(f"%{search}%"))
+
+    # Total count (same filters, no pagination)
+    count_q = select(func.count(Order.id)).where(*conditions) if conditions else select(func.count(Order.id))
+    total_result = await db.execute(count_q)
+    total = total_result.scalar() or 0
+
+    # Paginated list
+    query = select(Order).options(selectinload(Order.supplier))
+    if conditions:
+        query = query.where(*conditions)
     query = query.order_by(Order.created_at.desc()).offset(skip).limit(limit)
-    
     result = await db.execute(query)
     orders = result.scalars().all()
-    
-    return orders
+
+    return {"items": orders, "total": total}
 
 
 @router.get("/{order_id}", response_model=OrderResponse)

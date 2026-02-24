@@ -67,6 +67,7 @@ function Suppliers() {
     active: true
   });
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
+  const [rowCount, setRowCount] = useState(0);
   const { onColumnWidthChange, columnsWithWidths } = useDataGridState('suppliers');
 
   const columns = [
@@ -181,7 +182,9 @@ function Suppliers() {
         skip: pagination.page * pagination.pageSize,
         limit: pagination.pageSize,
       });
-      setSuppliers(response.data);
+      const data = response.data?.items != null ? response.data : { items: response.data, total: response.data?.length ?? 0 };
+      setSuppliers(Array.isArray(data.items) ? data.items : []);
+      setRowCount(typeof data.total === 'number' ? data.total : data.items?.length ?? 0);
     } catch (err) {
       setError('Ошибка загрузки поставщиков');
       console.error('Suppliers fetch error:', err);
@@ -291,11 +294,12 @@ function Suppliers() {
           columns={columnsWithWidths(columns)}
           onColumnWidthChange={onColumnWidthChange}
           pagination
+          paginationMode="server"
           paginationModel={pagination}
           onPaginationModelChange={setPagination}
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
-          rowCount={suppliers.length}
+          rowCount={rowCount}
           disableRowSelectionOnClick
           disableColumnResize={false}
           sx={dataGridSx}

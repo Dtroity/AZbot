@@ -64,6 +64,7 @@ function Orders() {
   const [newOrderText, setNewOrderText] = useState('');
   const [orderMessages, setOrderMessages] = useState([]);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
+  const [rowCount, setRowCount] = useState(0);
   const { onColumnWidthChange, columnsWithWidths } = useDataGridState('orders');
 
   const columns = [
@@ -158,7 +159,9 @@ function Orders() {
         skip: pagination.page * pagination.pageSize,
         limit: pagination.pageSize,
       });
-      setOrders(response.data);
+      const data = response.data?.items != null ? response.data : { items: response.data, total: response.data?.length ?? 0 };
+      setOrders(Array.isArray(data.items) ? data.items : []);
+      setRowCount(typeof data.total === 'number' ? data.total : data.items?.length ?? 0);
     } catch (err) {
       setError('Ошибка загрузки заказов');
       console.error('Orders fetch error:', err);
@@ -247,11 +250,12 @@ function Orders() {
           columns={columnsWithWidths(columns)}
           onColumnWidthChange={onColumnWidthChange}
           pagination
+          paginationMode="server"
           paginationModel={pagination}
           onPaginationModelChange={setPagination}
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
-          rowCount={orders.length}
+          rowCount={rowCount}
           disableRowSelectionOnClick
           disableColumnResize={false}
           sx={dataGridSx}

@@ -130,6 +130,24 @@ class OrderListResponse(OrderBase):
         from_attributes = True
 
 
+class OrderListPaginatedResponse(BaseModel):
+    """Ответ списка заказов с пагинацией."""
+    items: List[OrderListResponse]
+    total: int
+
+
+class SupplierListPaginatedResponse(BaseModel):
+    """Ответ списка поставщиков с пагинацией."""
+    items: List[SupplierResponse]
+    total: int
+
+
+class FilterListPaginatedResponse(BaseModel):
+    """Ответ списка фильтров с пагинацией."""
+    items: List[FilterResponse]
+    total: int
+
+
 # Order Message schemas
 class OrderMessageBase(BaseModel):
     message_text: str

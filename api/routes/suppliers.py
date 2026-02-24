@@ -5,7 +5,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from ..dependencies import get_db, get_current_admin
-from ..models.schemas import SupplierCreate, SupplierUpdate, SupplierResponse, FilterResponse
+from ..models.schemas import SupplierCreate, SupplierUpdate, SupplierResponse, SupplierListPaginatedResponse, FilterResponse
 from db.models import Supplier, Filter, Order
 from sqlalchemy import delete, update
 from bot.services import SupplierService, FilterService, OrderService
@@ -14,7 +14,7 @@ from bot.services import SupplierService, FilterService, OrderService
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
 
-@router.get("/", response_model=List[SupplierResponse])
+@router.get("/", response_model=SupplierListPaginatedResponse)
 async def get_suppliers(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -23,24 +23,17 @@ async def get_suppliers(
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get suppliers with filtering and pagination"""
+    """Get suppliers with filtering and pagination. Returns items and total count."""
     supplier_service = SupplierService(db)
-    
-    # Get suppliers
     suppliers = await supplier_service.get_all_suppliers(active_only=active_only)
-    
-    # Apply additional filters
     if role:
         suppliers = [s for s in suppliers if s.role == role]
-    
     if search:
         search_lower = search.lower()
         suppliers = [s for s in suppliers if search_lower in s.name.lower()]
-    
-    # Apply pagination
-    suppliers = suppliers[skip:skip+limit]
-    
-    return suppliers
+    total = len(suppliers)
+    page = suppliers[skip : skip + limit]
+    return {"items": page, "total": total}
 
 
 @router.get("/{supplier_id}", response_model=SupplierResponse)
