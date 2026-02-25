@@ -8,6 +8,7 @@ from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncpg
 
+import logging
 import re
 from ..database import get_session
 from ..services import OrderService, SupplierService, FilterService, MessageService
@@ -86,12 +87,17 @@ async def create_order_process(message: Message, state: FSMContext, bot: Bot):
             "📝 Введите список позиций (каждая с новой строки). Позиции будут разнесены по поставщикам по фильтрам."
         )
         return
+    raw_text = (message.text or "").strip()
+    logging.getLogger(__name__).info(
+        "create_order bulk: len(text)=%s repr_first200=%r", len(raw_text), raw_text[:200] if raw_text else ""
+    )
     async with get_session() as session:
         order_service = OrderService(session)
-        created_orders = await order_service.create_orders_from_bulk_message(
-            (message.text or "").strip(), message.from_user.id
+        created_orders, unmatched_lines = await order_service.create_orders_from_bulk_message(
+            raw_text, message.from_user.id
         )
-        if not created_orders:
+        lines_count = len(order_service._parse_bulk_lines(raw_text))
+        if not created_orders and not unmatched_lines:
             await message.answer("📝 Введите текст заказа (одна или несколько строк):")
             return
         for order in created_orders:
@@ -112,11 +118,29 @@ async def create_order_process(message: Message, state: FSMContext, bot: Bot):
                             pass
                         else:
                             raise
+        parts = [
+            f"✅ Обработано строк: {lines_count}, создано заказов: {len(created_orders)}",
+            "",
+        ]
+        if created_orders:
+            parts.append("\n".join([f"📦 #{order.id}" for order in created_orders]))
+        if unmatched_lines:
+            parts.append("")
+            parts.append(
+                "⚠️ <b>Не распределены</b> (нет подходящего фильтра у поставщиков):\n"
+                + "\n".join(f"• {line}" for line in unmatched_lines)
+            )
+            parts.append("")
+            parts.append(
+                "Добавьте ключевые слова в фильтры поставщиков или создайте заказы по этим позициям вручную."
+            )
+        parts.append("")
+        parts.append("📝 Можете отправить ещё позиции следующим сообщением или нажать <b>В меню</b>, чтобы выйти.")
         await message.answer(
-            f"✅ Создано заказов: {len(created_orders)}\n\n"
-            + "\n".join([f"📦 #{order.id}" for order in created_orders])
+            "\n".join(parts),
+            parse_mode=ParseMode.HTML,
         )
-    await state.clear()
+        # Не сбрасываем state: следующее сообщение снова будет обработано как список позиций (если вставка ушла двумя сообщениями)
 
 
 @admin_router.callback_query(F.data == "suppliers")

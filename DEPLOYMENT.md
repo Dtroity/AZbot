@@ -95,7 +95,14 @@ nano .env
    docker compose restart nginx
    ```
 
-Файл `nginx/htpasswd` не коммитится в репозиторий (указан в `.gitignore`). При первом деплое скопируйте `htpasswd.example` в `htpasswd`, как в п. 1.
+**Если nginx не стартует с ошибкой про mount «not a directory»:** на сервере `nginx/htpasswd` мог создаться как **каталог** (если при первом запуске файла не было). Тогда нужно удалить его и восстановить файл:
+   ```bash
+   docker compose stop nginx
+   rm -rf nginx/htpasswd
+   echo 'admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/' > nginx/htpasswd
+   docker compose start nginx
+   ```
+   Либо после `rm -rf nginx/htpasswd` выполнить `git checkout -- nginx/htpasswd` и затем `docker compose start nginx`.
 
 ### 3.4 После обновления на сервере (перед выходом из консоли)
 
@@ -120,7 +127,7 @@ nano .env
 
 4. **Если обновляли только код (без смены пароля/тома БД)** — пунктов 1–3 достаточно. **Если делали полный сброс БД** — скрипт `vps-full-reset.sh` уже выполняет инициализацию и проверку; после него достаточно убедиться, что `curl .../ready` возвращает OK.
 
-5. **Если в обновлении добавлена защита дашборда паролем** — создайте `nginx/htpasswd` из `nginx/htpasswd.example` (см. п. 3.3) и перезапустите nginx: `docker compose restart nginx`.
+5. **Если в обновлении добавлена защита дашборда паролем** — убедитесь, что `nginx/htpasswd` существует как **файл** (не каталог), при необходимости см. п. 3.3 (в т.ч. про ошибку mount «not a directory»), затем перезапустите nginx: `docker compose restart nginx`.
 
 После этих проверок можно выходить из консоли.
 

@@ -8,7 +8,7 @@ from sqlalchemy import func
 
 from ..dependencies import get_db, get_current_admin
 from ..models.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderListResponse, OrderListPaginatedResponse, OrderMessageResponse
-from db.models import Order
+from db.models import Order, OrderMessage
 from bot.services import OrderService, MessageService
 
 
@@ -144,9 +144,10 @@ async def delete_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # Delete order
+    # Delete order messages first (FK constraint)
     from sqlalchemy import delete
-    
+
+    await db.execute(delete(OrderMessage).where(OrderMessage.order_id == order_id))
     result = await db.execute(
         delete(Order).where(Order.id == order_id)
     )

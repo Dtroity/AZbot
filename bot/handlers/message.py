@@ -21,12 +21,16 @@ async def handle_text_message(message: Message):
             supplier_service = SupplierService(session)
             supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
             if supplier and supplier.active and message.from_user.id not in settings.admin_ids:
+                from_label = (
+                    f"📩 <b>Сообщение от заказчика (администратора)</b> {supplier.name} (ID {supplier.id}):\n\n"
+                    if getattr(supplier, "role", None) == "admin"
+                    else f"📩 <b>Сообщение от поставщика</b> {supplier.name} (ID {supplier.id}):\n\n"
+                )
                 for admin_id in settings.admin_ids:
                     try:
                         await message.bot.send_message(
                             admin_id,
-                            f"📩 <b>Сообщение от поставщика</b> {supplier.name} (ID {supplier.id}):\n\n"
-                            f"{message.text}",
+                            f"{from_label}{message.text}",
                             parse_mode="HTML",
                         )
                     except Exception:

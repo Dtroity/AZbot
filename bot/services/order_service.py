@@ -1,9 +1,12 @@
+import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from collections import defaultdict
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import select, update, and_, or_
 from sqlalchemy.orm import selectinload
 
@@ -49,18 +52,25 @@ class OrderService:
         await self.session.commit()
         return order
 
-    async def create_orders_from_bulk_message(self, message_text: str, admin_id: int) -> List[Order]:
-        """
-        Parse message as multiple lines; assign each line to a supplier by filters;
-        group lines by supplier and create one order per supplier with their lines.
-        """
-        lines = [
-            line.strip()
-            for line in (message_text or "").strip().splitlines()
-            if line.strip()
-        ]
-        if not lines:
+    def _parse_bulk_lines(self, message_text: str) -> List[str]:
+        """Разбить текст на непустые строки. Учитываем разные переносы (\\n, \\r\\n, \\r, Unicode)."""
+        if not message_text or not message_text.strip():
             return []
+        # Нормализуем переносы к \n (на случай \r\n или только \r)
+        normalized = message_text.strip().replace("\r\n", "\n").replace("\r", "\n")
+        # Unicode line/paragraph separator — тоже в \n
+        normalized = normalized.replace("\u2028", "\n").replace("\u2029", "\n")
+        lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+        return lines
+
+    async def create_orders_from_bulk_message(self, message_text: str, admin_id: int) -> Tuple[List[Order], List[str]]:
+        """
+        Разбить текст на строки; назначить каждую строку поставщику только по совпадению фильтра.
+        Строки без совпадения никому не назначаются — возвращаются в списке unmatched.
+        """
+        lines = self._parse_bulk_lines(message_text or "")
+        if not lines:
+            return [], []
 
         result = await self.session.execute(
             select(Supplier)
@@ -75,14 +85,17 @@ class OrderService:
         )
         suppliers = result.scalars().all()
         if not suppliers:
-            return []
+            return [], lines
 
-        # For each line, find the best matching supplier (by filters)
+        # Назначаем только по совпадению фильтра; без fallback на «первого» поставщика
         by_supplier: Dict[int, List[str]] = defaultdict(list)
+        unmatched: List[str] = []
         for line in lines:
             supplier = await self._find_suitable_supplier(line)
             if supplier:
                 by_supplier[supplier.id].append(line)
+            else:
+                unmatched.append(line)
 
         created = []
         for supplier_id, line_list in by_supplier.items():
@@ -91,7 +104,14 @@ class OrderService:
                 order_text, admin_id, assign_supplier_id=supplier_id
             )
             created.append(order)
-        return created
+        logger.info(
+            "create_orders_from_bulk: lines=%s orders=%s unmatched=%s by_supplier=%s",
+            len(lines),
+            len(created),
+            len(unmatched),
+            {sid: len(lst) for sid, lst in by_supplier.items()},
+        )
+        return created, unmatched
 
     async def _find_suitable_supplier(self, order_text: str) -> Optional[Supplier]:
         """Find best supplier based on filters"""
@@ -123,8 +143,8 @@ class OrderService:
                     break
         
         if not matching_suppliers:
-            # If no matches, return first active supplier
-            return suppliers[0]
+            # Не назначаем позицию никому — только по совпадению фильтра. Иначе админ увидит список «не распределено».
+            return None
         
         # Sort by priority and return best match
         matching_suppliers.sort(key=lambda x: x[1], reverse=True)
