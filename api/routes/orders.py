@@ -136,27 +136,29 @@ async def delete_order(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_admin)
 ):
-    """Delete order"""
+    """Delete order and its messages (messages are deleted first due to FK)."""
     order_service = OrderService(db)
-    
-    # Check if order exists
+
     order = await order_service.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Delete order messages first (FK constraint)
+
     from sqlalchemy import delete
 
-    await db.execute(delete(OrderMessage).where(OrderMessage.order_id == order_id))
-    result = await db.execute(
-        delete(Order).where(Order.id == order_id)
-    )
-    
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    await db.commit()
-    
+    try:
+        await db.execute(delete(OrderMessage).where(OrderMessage.order_id == order_id))
+        await db.flush()
+        result = await db.execute(delete(Order).where(Order.id == order_id))
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Order not found")
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Ошибка удаления заказа. Попробуйте ещё раз или проверьте логи API.",
+        ) from e
+
     return {"message": "Order deleted successfully"}
 
 

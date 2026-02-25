@@ -208,7 +208,8 @@ function Orders() {
         await ordersAPI.deleteOrder(order.id);
         fetchOrders();
       } catch (err) {
-        setError('Ошибка удаления заказа');
+        const msg = err.response?.data?.detail ?? 'Ошибка удаления заказа';
+        setError(typeof msg === 'string' ? msg : 'Ошибка удаления заказа');
         console.error('Order deletion error:', err);
       }
     }
