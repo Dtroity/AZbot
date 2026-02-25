@@ -68,6 +68,7 @@ function Suppliers() {
   });
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
   const [rowCount, setRowCount] = useState(0);
+  const [rowSelectionModel, setRowSelectionModel] = useState([]);
   const { onColumnWidthChange, columnsWithWidths } = useDataGridState('suppliers');
 
   const columns = [
@@ -269,17 +270,49 @@ function Suppliers() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (rowSelectionModel.length === 0) return;
+    if (!window.confirm(`Удалить выбранных поставщиков (${rowSelectionModel.length})?`)) return;
+    try {
+      setError(null);
+      const results = await Promise.allSettled(
+        rowSelectionModel.map((id) => suppliersAPI.deleteSupplier(id))
+      );
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length) {
+        setError(`Удалено: ${results.length - failed.length}. Ошибок: ${failed.length}.`);
+      }
+      setRowSelectionModel([]);
+      fetchSuppliers();
+    } catch (err) {
+      setError('Ошибка удаления поставщиков');
+      console.error('Bulk delete error:', err);
+    }
+  };
+
   return (
     <Box sx={{ width: '100%', minWidth: 0 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={1}>
         <Typography variant="h4">Поставщики</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Добавить поставщика
-        </Button>
+        <Box display="flex" alignItems="center" gap={1}>
+          {rowSelectionModel.length > 0 && (
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDeleteSelected}
+            >
+              Удалить выбранные ({rowSelectionModel.length})
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Добавить поставщика
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -300,6 +333,9 @@ function Suppliers() {
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
           rowCount={rowCount}
+          checkboxSelection
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={setRowSelectionModel}
           disableRowSelectionOnClick
           disableColumnResize={false}
           sx={dataGridSx}

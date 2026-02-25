@@ -65,6 +65,7 @@ function Orders() {
   const [orderMessages, setOrderMessages] = useState([]);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
   const [rowCount, setRowCount] = useState(0);
+  const [rowSelectionModel, setRowSelectionModel] = useState([]);
   const { onColumnWidthChange, columnsWithWidths } = useDataGridState('orders');
 
   const columns = [
@@ -215,6 +216,32 @@ function Orders() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (rowSelectionModel.length === 0) return;
+    if (!window.confirm(`Удалить выбранные заказы (${rowSelectionModel.length})?`)) return;
+    try {
+      setError(null);
+      const results = await Promise.allSettled(
+        rowSelectionModel.map((id) => ordersAPI.deleteOrder(id))
+      );
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length) {
+        const firstMsg = failed[0].reason?.response?.data?.detail;
+        setError(
+          firstMsg
+            ? `Удалено: ${results.length - failed.length}. Ошибки: ${firstMsg}${failed.length > 1 ? ` (и ещё ${failed.length - 1})` : ''}`
+            : `Удалено: ${results.length - failed.length}. Ошибок: ${failed.length}.`
+        );
+      }
+      setRowSelectionModel([]);
+      fetchOrders();
+    } catch (err) {
+      const msg = err.response?.data?.detail ?? 'Ошибка удаления заказов';
+      setError(typeof msg === 'string' ? msg : 'Ошибка удаления заказов');
+      console.error('Bulk delete error:', err);
+    }
+  };
+
   const handleAddMessage = async (message) => {
     try {
       await ordersAPI.addOrderMessage(selectedOrder.id, message);
@@ -228,15 +255,27 @@ function Orders() {
 
   return (
     <Box sx={{ width: '100%', minWidth: 0 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={1}>
         <Typography variant="h4">Заказы</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Создать заказ
-        </Button>
+        <Box display="flex" alignItems="center" gap={1}>
+          {rowSelectionModel.length > 0 && (
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDeleteSelected}
+            >
+              Удалить выбранные ({rowSelectionModel.length})
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Создать заказ
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -257,6 +296,9 @@ function Orders() {
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
           rowCount={rowCount}
+          checkboxSelection
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={setRowSelectionModel}
           disableRowSelectionOnClick
           disableColumnResize={false}
           sx={dataGridSx}

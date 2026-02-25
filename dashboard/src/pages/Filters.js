@@ -60,6 +60,7 @@ function Filters() {
   const [bulkSupplierId, setBulkSupplierId] = useState('');
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
   const [rowCount, setRowCount] = useState(0);
+  const [rowSelectionModel, setRowSelectionModel] = useState([]);
   const { onColumnWidthChange, columnsWithWidths } = useDataGridState('filters');
 
   const columns = [
@@ -231,6 +232,26 @@ function Filters() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (rowSelectionModel.length === 0) return;
+    if (!window.confirm(`Удалить выбранные фильтры (${rowSelectionModel.length})?`)) return;
+    try {
+      setError(null);
+      const results = await Promise.allSettled(
+        rowSelectionModel.map((id) => filtersAPI.deleteFilter(id))
+      );
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length) {
+        setError(`Удалено: ${results.length - failed.length}. Ошибок: ${failed.length}.`);
+      }
+      setRowSelectionModel([]);
+      fetchData();
+    } catch (err) {
+      setError('Ошибка удаления фильтров');
+      console.error('Bulk delete error:', err);
+    }
+  };
+
   const handleToggleActive = async (filter) => {
     try {
       if (filter.active) {
@@ -261,14 +282,23 @@ function Filters() {
 
   return (
     <Box sx={{ width: '100%', minWidth: 0 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={1}>
         <Typography variant="h4">Фильтры</Typography>
-        <Box>
+        <Box display="flex" alignItems="center" gap={1}>
+          {rowSelectionModel.length > 0 && (
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDeleteSelected}
+            >
+              Удалить выбранные ({rowSelectionModel.length})
+            </Button>
+          )}
           <Button
             variant="outlined"
             startIcon={<AddIcon />}
             onClick={() => setBulkDialogOpen(true)}
-            sx={{ mr: 2 }}
           >
             Массовое добавление
           </Button>
@@ -300,6 +330,9 @@ function Filters() {
           loading={loading}
           pageSizeOptions={[25, 50, 100]}
           rowCount={rowCount}
+          checkboxSelection
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={setRowSelectionModel}
           disableRowSelectionOnClick
           disableColumnResize={false}
           sx={dataGridSx}
