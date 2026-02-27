@@ -69,6 +69,9 @@ async def my_orders(message: Message):
         if not supplier:
             await message.answer("❌ Вы не зарегистрированы как поставщик")
             return
+        if supplier.role == "admin":
+            await message.answer("❌ Эта команда доступна только поставщикам. Вы являетесь администратором.")
+            return
         
         if not supplier.active:
             await message.answer("❌ Ваш аккаунт неактивен")
@@ -103,6 +106,9 @@ async def supplier_profile(message: Message):
         supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
         if not supplier:
             await message.answer("❌ Вы не зарегистрированы как поставщик")
+            return
+        if supplier.role == "admin":
+            await message.answer("❌ Профиль поставщика недоступен: вы являетесь администратором.")
             return
         
         # Get filters
@@ -175,6 +181,13 @@ async def supplier_help(message: Message):
 
 ❓ Если у вас есть вопросы, свяжитесь с администратором.
     """
+    # Если пользователь админ, показываем короткое сообщение
+    async with get_session() as session:
+        supplier_service = SupplierService(session)
+        supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
+        if supplier and supplier.role == "admin":
+            await message.answer("❌ Эта справка относится только к поставщикам. Для работы используйте админ-панель.")
+            return
     await message.answer(text, reply_markup=supplier_reply_keyboard())
 
 
@@ -237,6 +250,13 @@ async def btn_supplier_menu(message: Message):
         supplier = await supplier_service.get_supplier_by_telegram(message.from_user.id)
         if not supplier:
             await message.answer("❌ Вы не зарегистрированы как поставщик.")
+            return
+        if supplier.role == "admin":
+            from ..keyboards import admin_keyboard
+            await message.answer(
+                "👋 Главное меню администратора.",
+                reply_markup=admin_keyboard(),
+            )
             return
         if not supplier.active:
             await message.answer(

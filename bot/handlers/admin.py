@@ -40,14 +40,23 @@ class ManageSupplierState(StatesGroup):
 admin_router = Router()
 
 
-def _is_admin(user_id: int) -> bool:
-    return user_id in settings.admin_ids
+async def _is_admin(user_id: int) -> bool:
+    """
+    Проверка прав администратора:
+    - ID есть в ADMINS из .env
+    - или в БД есть поставщик с role = 'admin' для этого telegram_id.
+    """
+    if user_id in settings.admin_ids:
+        return True
+    async with get_session() as session:
+        supplier_service = SupplierService(session)
+        return await supplier_service.is_admin(user_id)
 
 
 @admin_router.message(Command("start"))
 async def cmd_start(message: Message, bot: Bot):
     """Handle /start command"""
-    if _is_admin(message.from_user.id):
+    if await _is_admin(message.from_user.id):
         await message.answer(
             "👋 <b>Админ-панель</b>\n\n"
             "Используйте кнопки ниже для управления заказами и поставщиками.",
@@ -353,7 +362,7 @@ async def search_orders_process(message: Message, state: FSMContext):
 
 @admin_router.message(F.text == BTN_MENU)
 async def btn_menu(message: Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
+    if not await _is_admin(message.from_user.id):
         return
     await state.clear()
     await message.answer(
@@ -365,7 +374,7 @@ async def btn_menu(message: Message, state: FSMContext):
 
 @admin_router.message(F.text == BTN_ORDER)
 async def btn_create_order(message: Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
+    if not await _is_admin(message.from_user.id):
         return
     await message.answer(
         "📝 Введите список позиций заказа (каждая с новой строки). "
@@ -376,7 +385,7 @@ async def btn_create_order(message: Message, state: FSMContext):
 
 @admin_router.message(F.text == BTN_SUPPLIERS)
 async def btn_suppliers(message: Message):
-    if not _is_admin(message.from_user.id):
+    if not await _is_admin(message.from_user.id):
         return
     try:
         async with get_session() as session:
@@ -407,7 +416,7 @@ async def btn_suppliers(message: Message):
 
 @admin_router.message(F.text == BTN_STATS)
 async def btn_stats(message: Message):
-    if not _is_admin(message.from_user.id):
+    if not await _is_admin(message.from_user.id):
         return
     await message.answer(
         "📊 Выберите период статистики:",
@@ -417,7 +426,7 @@ async def btn_stats(message: Message):
 
 @admin_router.message(F.text == BTN_SEARCH)
 async def btn_search(message: Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
+    if not await _is_admin(message.from_user.id):
         return
     await message.answer("🔍 Введите текст для поиска заказов:")
     await state.set_state("search_orders")
@@ -425,7 +434,7 @@ async def btn_search(message: Message, state: FSMContext):
 
 @admin_router.message(F.text == BTN_ADD_SUPPLIER)
 async def btn_add_supplier(message: Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
+    if not await _is_admin(message.from_user.id):
         return
     await message.answer("📝 Введите имя поставщика:")
     await state.set_state(ManageSupplierState.waiting_for_name)
@@ -442,11 +451,15 @@ def _is_reply_to_order_notification(message: Message) -> bool:
     return True
 
 
-@admin_router.message(
-    lambda m: m.from_user and _is_admin(m.from_user.id) and _is_reply_to_order_notification(m),
-)
+@admin_router.message()
 async def admin_reply_to_supplier_message(message: Message, bot: Bot):
     """Ответ админа на сообщение поставщика по заказу (ответ на уведомление бота)."""
+    if not message.from_user:
+        return
+    if not _is_reply_to_order_notification(message):
+        return
+    if not await _is_admin(message.from_user.id):
+        return
     replied = message.reply_to_message.text
     order_match = re.search(r"#([A-Za-z0-9]+)", replied)
     if not order_match:
@@ -483,12 +496,11 @@ async def admin_reply_to_supplier_message(message: Message, bot: Bot):
         await message.reply("❌ Не удалось отправить ответ. Попробуйте позже.")
 
 
-@admin_router.message(
-    lambda m: m.from_user and _is_admin(m.from_user.id),
-    ~F.state == "message_order",  # не перехватывать ввод сообщения для заказа
-)
+@admin_router.message(~F.state == "message_order")
 async def admin_fallback_menu(message: Message, state: FSMContext):
     """Если админ отправил любое сообщение и ни один обработчик не сработал — показать меню (не требовать /start)."""
+    if not message.from_user or not await _is_admin(message.from_user.id):
+        return
     await state.clear()
     await message.answer(
         "👋 <b>Главное меню</b>\n\nИспользуйте кнопки ниже.",
